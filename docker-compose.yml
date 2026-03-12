@@ -1,0 +1,133 @@
+# The MIT License (MIT)
+#
+# Copyright (c) 2025 Che-Hung Lin
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+name: downloader-services
+
+x-common-env-files: &common-env-files
+  - ${APP_ENV_FILE:-.env.base}
+
+services:
+  downloader-db:
+    image: downloader-database
+    build: downloader-database/
+    container_name: downloader-database
+    hostname: downloader-db
+    restart: unless-stopped
+    env_file: *common-env-files
+    volumes: # Use a bind mount to a configurable host path
+      - "${DOWNLOADER_DB_DATA_PATH}:/var/lib/mysql"
+    networks:
+      downloader-network:
+        ipv4_address: 172.16.14.10
+    # ports:
+      # - "${DOWNLOADER_DB_PORT:-3307}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${DOWNLOADER_MYSQL_DATABASE:-downloader}
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      # How often to run the check.
+      interval: 30s
+      # How long to wait for the check to return.
+      timeout: 10s
+      # How many times to retry before marking as unhealthy.
+      retries: 5
+      # Grace period for startup. Checks every 5s during this time.
+      start_period: 60s
+
+  downloader-backend:
+    image: downloader-backend
+    build:
+      context: ..
+      dockerfile: ./downloader/downloader-backend/Dockerfile
+      args:
+        # Pass the download path to the Dockerfile at build time.
+        - DOWNLOAD_PATH_ARG=${DOWNLOADER_INTERNAL_PATH:-/app/downloads}
+        - COOKIE_PATH_ARG=${NETSCAPE_COOKIE_INTERNAL_PATH:-/app/cookies}
+    container_name: downloader-backend
+    hostname: downloader-backend
+    restart: unless-stopped
+    env_file: *common-env-files
+    networks:
+      shared-services-network:
+        ipv4_address: 172.16.10.14
+      downloader-network:
+        ipv4_address: 172.16.14.11
+    ports:
+      - "${DOWNLOADER_PORT:-8084}:8080"
+    depends_on:
+      downloader-db:
+        condition: service_healthy
+    environment:
+      # Override the datasource URL to use the Docker service name
+      - SPRING_DATASOURCE_URL=jdbc:mysql://downloader-db:3306/${DOWNLOADER_MYSQL_DATABASE:-downloader}
+      # It's good practice to also provide credentials via environment variables
+      - SPRING_DATASOURCE_USERNAME=${MYSQL_USER}
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_PASSWORD}
+      # Override the server port to 8080 for the container environment
+      - SERVER_PORT=8080
+      # Configure CORS allowed origins
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      # Override the JWT issuer URI to use the authentication service's Docker service name
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=${AUTH_SERVICE_URL:-http://authentication-backend:8080}
+      # These values are used by the downloader to communicate with the main API and authentication service.
+      # API for Downloader to access main APIs of YouTube Hub
+      - YOUTUBE_HUB_API_URL=${YOUTUBE_HUB_BACKEND_URL:-http://youtube-hub-backend:8080}
+      - AUTHENTICATION_SERVICE_URL=${AUTH_SERVICE_URL:-http://authentication-backend:8080}
+      # Authentication Client Configuration for Downloader to access main APIs of YouTube Hub
+      - DOWNLOADER_CLIENT_ID=${DOWNLOADER_CLIENT_ID}
+      - DOWNLOADER_CLIENT_SECRET=${DOWNLOADER_CLIENT_SECRET}
+      # Configure the application to use the internal paths mapped in volumes
+      - DOWNLOADER_DOWNLOAD_FOLDER=${DOWNLOADER_INTERNAL_PATH:-/app/downloads}
+      - DOWNLOADER_NETSCAPE_COOKIE_FOLDER=${NETSCAPE_COOKIE_INTERNAL_PATH:-/app/cookies}
+      # Explicitly disable Spring Boot's "Debug Mode" (auto-config report) so it doesn't conflict with Next.js DEBUG var.
+      - DEBUG=false
+    volumes:
+      # Map a host directory to the container's download path for persistent storage
+      - "${DOWNLOAD_PATH}:${DOWNLOADER_INTERNAL_PATH:-/app/downloads}"
+      # Map a host directory for Netscape cookie files
+      - "${NETSCAPE_COOKIE_PATH}:${NETSCAPE_COOKIE_INTERNAL_PATH:-/app/cookies}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      # How often to run the check.
+      interval: 30s
+      # How long to wait for the check to return.
+      timeout: 10s
+      # How many times to retry before marking as unhealthy.
+      retries: 5
+      # Grace period for startup. Checks every 5s during this time.
+      start_period: 60s
+    # Set memory limits for standard 'docker-compose up'
+    mem_limit: 1024M
+
+networks:
+  downloader-network:
+    name: downloader-network
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.14.0/24
+          gateway: 172.16.14.1
+  shared-services-network:
+    external: true
