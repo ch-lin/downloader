@@ -23,8 +23,11 @@
  *===========================================================================*/
 package ch.lin.downloader.backend.api.app.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -32,14 +35,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.downloader.backend.api.domain.DownloaderConfig;
 
-import java.util.List;
-import java.util.Optional;
-
 /**
  * Spring Data JPA repository for {@link DownloaderConfig} entities.
  */
 @Repository
-public interface DownloaderConfigRepository extends JpaRepository<DownloaderConfig, String> {
+public interface DownloaderConfigRepository extends JpaRepository<DownloaderConfig, Long> {
 
     /**
      * Deletes all {@link DownloaderConfig} records from the database.
@@ -54,8 +54,7 @@ public interface DownloaderConfigRepository extends JpaRepository<DownloaderConf
 
     /**
      * Finds a {@link DownloaderConfig} by its name, eagerly fetching the
-     * associated
-     * {@link ch.lin.downloader.backend.api.domain.YtDlpConfig}.
+     * associated {@link ch.lin.downloader.backend.api.domain.YtDlpConfig}.
      *
      * @param name The name of the configuration.
      * @return An {@link Optional} containing the found configuration.

@@ -29,9 +29,8 @@ import org.junit.jupiter.api.Test;
 class YtDlpConfigTest {
 
     @Test
-    void testNoArgsConstructorAndSetters() {
-        YtDlpConfig config = new YtDlpConfig();
-        config.setName("default");
+    void testConstructorAndSetters() {
+        YtDlpConfig config = new YtDlpConfig("default");
         config.setFormatFiltering("best");
         config.setFormatSorting("res:1080");
         config.setRemuxVideo("mp4");
@@ -71,40 +70,9 @@ class YtDlpConfigTest {
     }
 
     @Test
-    void testAllArgsConstructor() {
-        YtDlpConfig config = new YtDlpConfig(
-                "default",
-                "best",
-                "res:1080",
-                "mp4",
-                true,
-                true,
-                "en",
-                false,
-                "srt",
-                "%(title)s.%(ext)s",
-                OverwriteOption.FORCE,
-                true,
-                false,
-                "mp3",
-                0,
-                true,
-                true,
-                "cookie-content"
-        );
-
-        assertThat(config.getName()).isEqualTo("default");
-        assertThat(config.getFormatFiltering()).isEqualTo("best");
-        assertThat(config.getUseCookie()).isTrue();
-        assertThat(config.getCookie()).isEqualTo("cookie-content");
-    }
-
-    @Test
     void testEqualsAndHashCode() {
-        YtDlpConfig config1 = new YtDlpConfig();
-        config1.setName("config1");
-        YtDlpConfig config2 = new YtDlpConfig();
-        config2.setName("config1");
+        YtDlpConfig config1 = new YtDlpConfig("config1");
+        YtDlpConfig config2 = new YtDlpConfig("config1");
 
         assertThat(config1).isEqualTo(config2);
         assertThat(config1.hashCode()).isEqualTo(config2.hashCode());

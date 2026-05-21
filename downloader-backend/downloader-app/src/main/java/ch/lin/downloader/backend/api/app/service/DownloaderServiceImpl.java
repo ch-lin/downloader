@@ -112,13 +112,11 @@ public class DownloaderServiceImpl implements DownloaderService {
         logger.info("Received request to create download job for {} items with config '{}'.", items.size(),
                 activeConfig.getName());
 
-        DownloadJob job = new DownloadJob();
-        job.setStatus(JobStatus.PENDING);
-        job.setConfigName(configName);
+        DownloadJob job = new DownloadJob(configName);
 
         for (DownloadItem item : items) {
             logger.debug("Creating task for videoId: {}", item.getVideoId());
-            job.addTask(createTaskFromItem(item));
+            job.addTask(createTaskFromItem(job, item));
         }
 
         DownloadJob savedJob = downloadJobRepository.save(job);
@@ -143,16 +141,14 @@ public class DownloaderServiceImpl implements DownloaderService {
     /**
      * Creates a {@link DownloadTask} entity from a {@link DownloadItem} DTO.
      *
+     * @param job The parent download job.
      * @param item The DTO containing the video details.
      * @return A new {@link DownloadTask} entity.
      */
-    private DownloadTask createTaskFromItem(DownloadItem item) {
-        DownloadTask task = new DownloadTask();
-        task.setVideoId(item.getVideoId());
-        task.setTitle(item.getTitle());
+    private DownloadTask createTaskFromItem(DownloadJob job, DownloadItem item) {
+        DownloadTask task = new DownloadTask(job, item.getVideoId(), item.getTitle());
         task.setThumbnailUrl(item.getThumbnailUrl());
         task.setDescription(item.getDescription());
-        task.setStatus(TaskStatus.PENDING);
         // Other fields like filePath, fileSize, errorMessage will be set later during
         // execution.
         return task;

@@ -69,6 +69,7 @@ import static org.mockito.Mockito.withSettings;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import ch.lin.downloader.backend.api.app.config.DownloaderDefaultProperties;
 import ch.lin.downloader.backend.api.app.repository.DownloadJobRepository;
@@ -110,7 +111,7 @@ class ExecutorServiceImplTest {
 
     @Test
     void init_ShouldStartScheduler_WhenConfigEnabled() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setStartDownloadAutomatically(true);
         config.setDuration(60);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
@@ -126,7 +127,7 @@ class ExecutorServiceImplTest {
 
     @Test
     void init_ShouldNotStartScheduler_WhenConfigDisabled() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setStartDownloadAutomatically(false);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -138,7 +139,7 @@ class ExecutorServiceImplTest {
 
     @Test
     void start_ShouldScheduleTask_WhenNotRunning() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -153,7 +154,7 @@ class ExecutorServiceImplTest {
 
     @Test
     void stop_ShouldCancelTask_WhenRunning() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -168,7 +169,7 @@ class ExecutorServiceImplTest {
 
     @Test
     void start_ShouldNotSchedule_WhenAlreadyRunning() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -184,7 +185,7 @@ class ExecutorServiceImplTest {
 
     @Test
     void start_ShouldRestart_WhenTaskIsDone() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -206,7 +207,7 @@ class ExecutorServiceImplTest {
 
     @Test
     void stop_ShouldDoNothing_WhenTaskIsDone() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -223,7 +224,7 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldDoNothing_WhenNoPendingTasks() {
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(Collections.emptyList());
-        when(configsService.getResolvedConfig(null)).thenReturn(new DownloaderConfig());
+        when(configsService.getResolvedConfig(null)).thenReturn(new DownloaderConfig("default"));
 
         executorService.processPendingTasks();
 
@@ -232,17 +233,14 @@ class ExecutorServiceImplTest {
 
     @Test
     void processPendingTasks_ShouldProcessTasks_WhenPendingTasksExist() {
-        DownloadTask task = new DownloadTask();
-        task.setId("task-1");
-        task.setVideoId("vid-1");
-        task.setTitle("Test Video");
-        DownloadJob job = new DownloadJob();
-        job.setId("job-1");
-        job.setConfigName("default");
-        task.setJob(job);
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-1");
+        DownloadTask task = new DownloadTask(job, "vid-1", "Test Video");
+        ReflectionTestUtils.setField(task, "id", "task-1");
+        job.addTask(task);
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
-        when(configsService.getResolvedConfig(null)).thenReturn(new DownloaderConfig()); // For thread pool adjustment
+        when(configsService.getResolvedConfig(null)).thenReturn(new DownloaderConfig("default")); // For thread pool adjustment
 
         executorService.processPendingTasks();
 
@@ -255,8 +253,9 @@ class ExecutorServiceImplTest {
 
     @Test
     void updateTaskFromResult_ShouldMarkDownloaded_WhenSuccess() {
-        DownloadTask task = new DownloadTask();
-        task.setId("task-1");
+        DownloadJob job = new DownloadJob("default");
+        DownloadTask task = new DownloadTask(job, "vid", "title");
+        ReflectionTestUtils.setField(task, "id", "task-1");
 
         DownloadResult result = new DownloadResult();
         result.setSuccess(true);
@@ -273,8 +272,9 @@ class ExecutorServiceImplTest {
 
     @Test
     void updateTaskFromResult_ShouldMarkFailed_WhenFailure() {
-        DownloadTask task = new DownloadTask();
-        task.setId("task-1");
+        DownloadJob job = new DownloadJob("default");
+        DownloadTask task = new DownloadTask(job, "vid", "title");
+        ReflectionTestUtils.setField(task, "id", "task-1");
 
         DownloadResult result = new DownloadResult();
         result.setSuccess(false);
@@ -290,9 +290,9 @@ class ExecutorServiceImplTest {
     @Test
     void updateJobStatus_ShouldMarkCompleted_WhenAllTasksDownloaded() {
         String jobId = "job-1";
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
-        DownloadTask task1 = new DownloadTask();
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
+        DownloadTask task1 = new DownloadTask(job, "vid1", "title1");
         task1.setStatus(TaskStatus.DOWNLOADED);
         job.addTask(task1);
 
@@ -307,11 +307,11 @@ class ExecutorServiceImplTest {
     @Test
     void updateJobStatus_ShouldMarkPartiallyCompleted_WhenMixedStatus() {
         String jobId = "job-1";
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
-        DownloadTask task1 = new DownloadTask();
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
+        DownloadTask task1 = new DownloadTask(job, "vid1", "title1");
         task1.setStatus(TaskStatus.DOWNLOADED);
-        DownloadTask task2 = new DownloadTask();
+        DownloadTask task2 = new DownloadTask(job, "vid2", "title2");
         task2.setStatus(TaskStatus.FAILED);
         job.addTask(task1);
         job.addTask(task2);
@@ -327,9 +327,9 @@ class ExecutorServiceImplTest {
     @Test
     void updateJobStatus_ShouldMarkFailed_WhenAllTasksFailed() {
         String jobId = "job-1";
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
-        DownloadTask task1 = new DownloadTask();
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
+        DownloadTask task1 = new DownloadTask(job, "vid1", "title1");
         task1.setStatus(TaskStatus.FAILED);
         job.addTask(task1);
 
@@ -344,11 +344,11 @@ class ExecutorServiceImplTest {
     @Test
     void updateJobStatus_ShouldMarkInProgress_WhenTasksRemaining() {
         String jobId = "job-1";
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
-        DownloadTask task1 = new DownloadTask();
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
+        DownloadTask task1 = new DownloadTask(job, "vid1", "title1");
         task1.setStatus(TaskStatus.DOWNLOADED);
-        DownloadTask task2 = new DownloadTask();
+        DownloadTask task2 = new DownloadTask(job, "vid2", "title2");
         task2.setStatus(TaskStatus.PENDING);
         job.addTask(task1);
         job.addTask(task2);
@@ -401,22 +401,17 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldExecuteDownload_WhenTasksPending(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-1");
-        job.setConfigName("default");
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-1");
 
-        DownloadTask task = new DownloadTask();
-        task.setId("task-1");
-        task.setVideoId("vid-1");
-        task.setTitle("Test Video");
+        DownloadTask task = new DownloadTask(job, "vid-1", "Test Video");
+        ReflectionTestUtils.setField(task, "id", "task-1");
         task.setDescription("desc");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setThreadPoolSize(3);
-        YtDlpConfig ytDlpConfig = new YtDlpConfig();
+        YtDlpConfig ytDlpConfig = new YtDlpConfig("default");
         ytDlpConfig.setWriteSubs(false);
         config.setYtDlpConfig(ytDlpConfig);
 
@@ -474,14 +469,14 @@ class ExecutorServiceImplTest {
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(Collections.emptyList());
 
         // 1. Increase size (3 -> 5)
-        DownloaderConfig configIncrease = new DownloaderConfig();
+        DownloaderConfig configIncrease = new DownloaderConfig("default");
         configIncrease.setThreadPoolSize(5);
         when(configsService.getResolvedConfig(null)).thenReturn(configIncrease);
 
         executorService.processPendingTasks();
 
         // 2. Decrease size (5 -> 2)
-        DownloaderConfig configDecrease = new DownloaderConfig();
+        DownloaderConfig configDecrease = new DownloaderConfig("default");
         configDecrease.setThreadPoolSize(2);
         when(configsService.getResolvedConfig(null)).thenReturn(configDecrease);
 
@@ -495,7 +490,7 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldSkip_WhenQueueIsBusy() throws Exception {
         // Setup config for adjustThreadPoolSize
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setThreadPoolSize(3);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -521,7 +516,7 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldProceed_WhenExecutorIsNotThreadPool() throws Exception {
         // Setup config
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setThreadPoolSize(5);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -547,13 +542,13 @@ class ExecutorServiceImplTest {
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(Collections.emptyList());
 
         // 1. Size is null
-        DownloaderConfig configNull = new DownloaderConfig();
+        DownloaderConfig configNull = new DownloaderConfig("default");
         configNull.setThreadPoolSize(null);
         when(configsService.getResolvedConfig(null)).thenReturn(configNull);
         executorService.processPendingTasks();
 
         // 2. Size is 0
-        DownloaderConfig configZero = new DownloaderConfig();
+        DownloaderConfig configZero = new DownloaderConfig("default");
         configZero.setThreadPoolSize(0);
         when(configsService.getResolvedConfig(null)).thenReturn(configZero);
         executorService.processPendingTasks();
@@ -561,7 +556,7 @@ class ExecutorServiceImplTest {
 
     @Test
     void isSchedulerRunning_ShouldReturnFalse_WhenCancelled() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -575,7 +570,7 @@ class ExecutorServiceImplTest {
 
     @Test
     void isSchedulerRunning_ShouldReturnFalse_WhenDone() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -590,20 +585,15 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldIncludeAllOptions_WhenConfigured(@TempDir Path tempDir) throws Exception {
         // Setup Job and Task
-        DownloadJob job = new DownloadJob();
-        job.setId("job-full");
-        job.setConfigName("full-config");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-full");
-        task.setVideoId("vid-full");
-        task.setTitle("Full Config Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("full-config");
+        ReflectionTestUtils.setField(job, "id", "job-full");
+        DownloadTask task = new DownloadTask(job, "vid-full", "Full Config Video");
+        ReflectionTestUtils.setField(task, "id", "task-full");
+        job.addTask(task);
 
         // Setup Config
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("full-config");
-        YtDlpConfig ytDlp = new YtDlpConfig();
+        DownloaderConfig config = new DownloaderConfig("full-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("full-config");
         ytDlp.setFormatFiltering("best");
         ytDlp.setFormatSorting("res:1080");
         ytDlp.setWriteSubs(true);
@@ -683,20 +673,15 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldIncludeRemuxAndSkip_WhenConfigured(@TempDir Path tempDir) throws Exception {
         // Setup Job and Task
-        DownloadJob job = new DownloadJob();
-        job.setId("job-remux");
-        job.setConfigName("remux-config");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-remux");
-        task.setVideoId("vid-remux");
-        task.setTitle("Remux Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("remux-config");
+        ReflectionTestUtils.setField(job, "id", "job-remux");
+        DownloadTask task = new DownloadTask(job, "vid-remux", "Remux Video");
+        ReflectionTestUtils.setField(task, "id", "task-remux");
+        job.addTask(task);
 
         // Setup Config
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("remux-config");
-        YtDlpConfig ytDlp = new YtDlpConfig();
+        DownloaderConfig config = new DownloaderConfig("remux-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("remux-config");
         ytDlp.setExtractAudio(false);
         ytDlp.setRemuxVideo("mkv");
         ytDlp.setNoProgress(true);
@@ -749,19 +734,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldSkipSubs_WhenNotAvailable(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-subs");
-        job.setConfigName("subs-config");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-subs");
-        task.setVideoId("vid-subs");
-        task.setTitle("Subs Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("subs-config");
+        ReflectionTestUtils.setField(job, "id", "job-subs");
+        DownloadTask task = new DownloadTask(job, "vid-subs", "Subs Video");
+        ReflectionTestUtils.setField(task, "id", "task-subs");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("subs-config");
-        YtDlpConfig ytDlp = new YtDlpConfig();
+        DownloaderConfig config = new DownloaderConfig("subs-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("subs-config");
         ytDlp.setWriteSubs(true);
         config.setYtDlpConfig(ytDlp);
 
@@ -805,19 +785,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldHandleConfigEdgeCases(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-edge");
-        job.setConfigName("edge-config");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-edge");
-        task.setVideoId("vid-edge");
-        task.setTitle("Edge Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("edge-config");
+        ReflectionTestUtils.setField(job, "id", "job-edge");
+        DownloadTask task = new DownloadTask(job, "vid-edge", "Edge Video");
+        ReflectionTestUtils.setField(task, "id", "task-edge");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("edge-config");
-        YtDlpConfig ytDlp = new YtDlpConfig();
+        DownloaderConfig config = new DownloaderConfig("edge-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("edge-config");
         ytDlp.setExtractAudio(true);
         ytDlp.setAudioFormat(null); // Should trigger null check
         ytDlp.setAudioQuality(null); // Should trigger null check
@@ -872,19 +847,14 @@ class ExecutorServiceImplTest {
 
     @Test
     void processPendingTasks_ShouldHandleMissingFile_AfterSuccess(@TempDir Path tempDir) throws Exception {
-        DownloadJob job = new DownloadJob();
-        job.setId("job-missing");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-missing");
-        task.setVideoId("vid-missing");
-        task.setTitle("Missing Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-missing");
+        DownloadTask task = new DownloadTask(job, "vid-missing", "Missing Video");
+        ReflectionTestUtils.setField(task, "id", "task-missing");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -926,19 +896,14 @@ class ExecutorServiceImplTest {
 
     @Test
     void processPendingTasks_ShouldHandleProcessFailure(@TempDir Path tempDir) throws Exception {
-        DownloadJob job = new DownloadJob();
-        job.setId("job-fail");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-fail");
-        task.setVideoId("vid-fail");
-        task.setTitle("Fail Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-fail");
+        DownloadTask task = new DownloadTask(job, "vid-fail", "Fail Video");
+        ReflectionTestUtils.setField(task, "id", "task-fail");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -978,19 +943,14 @@ class ExecutorServiceImplTest {
 
     @Test
     void processPendingTasks_ShouldHandleIOException(@TempDir Path tempDir) throws Exception {
-        DownloadJob job = new DownloadJob();
-        job.setId("job-io");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-io");
-        task.setVideoId("vid-io");
-        task.setTitle("IO Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-io");
+        DownloadTask task = new DownloadTask(job, "vid-io", "IO Video");
+        ReflectionTestUtils.setField(task, "id", "task-io");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1026,19 +986,14 @@ class ExecutorServiceImplTest {
 
     @Test
     void processPendingTasks_ShouldHandleInterruptedException(@TempDir Path tempDir) throws Exception {
-        DownloadJob job = new DownloadJob();
-        job.setId("job-int");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-int");
-        task.setVideoId("vid-int");
-        task.setTitle("Int Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-int");
+        DownloadTask task = new DownloadTask(job, "vid-int", "Int Video");
+        ReflectionTestUtils.setField(task, "id", "task-int");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1079,20 +1034,15 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldLogWarning_WhenCookieFileMissing(@TempDir Path tempDir) throws Exception {
         // Setup Job and Task
-        DownloadJob job = new DownloadJob();
-        job.setId("job-cookie-missing");
-        job.setConfigName("cookie-config");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-cookie-missing");
-        task.setVideoId("vid-cookie-missing");
-        task.setTitle("Cookie Missing Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("cookie-config");
+        ReflectionTestUtils.setField(job, "id", "job-cookie-missing");
+        DownloadTask task = new DownloadTask(job, "vid-cookie-missing", "Cookie Missing Video");
+        ReflectionTestUtils.setField(task, "id", "task-cookie-missing");
+        job.addTask(task);
 
         // Setup Config
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("cookie-config");
-        YtDlpConfig ytDlp = new YtDlpConfig();
+        DownloaderConfig config = new DownloaderConfig("cookie-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("cookie-config");
         ytDlp.setUseCookie(true);
         config.setYtDlpConfig(ytDlp);
 
@@ -1140,20 +1090,15 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldParseOutput_WhenNoProgressEnabled(@TempDir Path tempDir) throws Exception {
         // Setup Job and Task
-        DownloadJob job = new DownloadJob();
-        job.setId("job-no-progress");
-        job.setConfigName("no-progress-config");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-no-progress");
-        task.setVideoId("vid-no-progress");
-        task.setTitle("No Progress Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("no-progress-config");
+        ReflectionTestUtils.setField(job, "id", "job-no-progress");
+        DownloadTask task = new DownloadTask(job, "vid-no-progress", "No Progress Video");
+        ReflectionTestUtils.setField(task, "id", "task-no-progress");
+        job.addTask(task);
 
         // Setup Config
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("no-progress-config");
-        YtDlpConfig ytDlp = new YtDlpConfig();
+        DownloaderConfig config = new DownloaderConfig("no-progress-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("no-progress-config");
         ytDlp.setNoProgress(true);
         config.setYtDlpConfig(ytDlp);
 
@@ -1210,19 +1155,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldHandleBufferReading_WithCR_AndEmptyLines(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-buffer");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-buffer");
-        task.setVideoId("vid-buffer");
-        task.setTitle("Buffer Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-buffer");
+        DownloadTask task = new DownloadTask(job, "vid-buffer", "Buffer Video");
+        ReflectionTestUtils.setField(task, "id", "task-buffer");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig()); // noProgress is false by default
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default")); // noProgress is false by default
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1273,19 +1213,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldSucceed_WhenExitCode1_AndFileFound(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-exit1");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-exit1");
-        task.setVideoId("vid-exit1");
-        task.setTitle("Exit1 Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-exit1");
+        DownloadTask task = new DownloadTask(job, "vid-exit1", "Exit1 Video");
+        ReflectionTestUtils.setField(task, "id", "task-exit1");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1327,19 +1262,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldFail_WhenExitCodeIsTwo(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-exit2");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-exit2");
-        task.setVideoId("vid-exit2");
-        task.setTitle("Exit2 Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-exit2");
+        DownloadTask task = new DownloadTask(job, "vid-exit2", "Exit2 Video");
+        ReflectionTestUtils.setField(task, "id", "task-exit2");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1389,19 +1319,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldUseFallbackErrorMessage_WhenNoErrorLinesFound(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-fallback-error");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-fallback-error");
-        task.setVideoId("vid-fallback-error");
-        task.setTitle("Fallback Error Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-fallback-error");
+        DownloadTask task = new DownloadTask(job, "vid-fallback-error", "Fallback Error Video");
+        ReflectionTestUtils.setField(task, "id", "task-fallback-error");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1441,19 +1366,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldHandleSubtitlesCheck_WhenExitCodeNonZero(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-subs-fail");
-        job.setConfigName("subs-config");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-subs-fail");
-        task.setVideoId("vid-subs-fail");
-        task.setTitle("Subs Fail Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("subs-config");
+        ReflectionTestUtils.setField(job, "id", "job-subs-fail");
+        DownloadTask task = new DownloadTask(job, "vid-subs-fail", "Subs Fail Video");
+        ReflectionTestUtils.setField(task, "id", "task-subs-fail");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("subs-config");
-        YtDlpConfig ytDlp = new YtDlpConfig();
+        DownloaderConfig config = new DownloaderConfig("subs-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("subs-config");
         ytDlp.setWriteSubs(true);
         config.setYtDlpConfig(ytDlp);
 
@@ -1498,19 +1418,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldHandleSubtitlesCheck_Exception(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-subs-ex");
-        job.setConfigName("subs-config");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-subs-ex");
-        task.setVideoId("vid-subs-ex");
-        task.setTitle("Subs Ex Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("subs-config");
+        ReflectionTestUtils.setField(job, "id", "job-subs-ex");
+        DownloadTask task = new DownloadTask(job, "vid-subs-ex", "Subs Ex Video");
+        ReflectionTestUtils.setField(task, "id", "task-subs-ex");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("subs-config");
-        YtDlpConfig ytDlp = new YtDlpConfig();
+        DownloaderConfig config = new DownloaderConfig("subs-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("subs-config");
         ytDlp.setWriteSubs(true);
         config.setYtDlpConfig(ytDlp);
 
@@ -1551,19 +1466,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldParseMergerOutput(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-merger");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-merger");
-        task.setVideoId("vid-merger");
-        task.setTitle("Merger Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-merger");
+        DownloadTask task = new DownloadTask(job, "vid-merger", "Merger Video");
+        ReflectionTestUtils.setField(task, "id", "task-merger");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1607,19 +1517,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldParseAlreadyDownloadedOutput(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-already");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-already");
-        task.setVideoId("vid-already");
-        task.setTitle("Already Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-already");
+        DownloadTask task = new DownloadTask(job, "vid-already", "Already Video");
+        ReflectionTestUtils.setField(task, "id", "task-already");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1663,19 +1568,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldParsePostProcessorOutput(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-post");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-post");
-        task.setVideoId("vid-post");
-        task.setTitle("Post Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-post");
+        DownloadTask task = new DownloadTask(job, "vid-post", "Post Video");
+        ReflectionTestUtils.setField(task, "id", "task-post");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1720,19 +1620,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldHandleProgressParsing_EdgeCases(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-edge-progress");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-edge-progress");
-        task.setVideoId("vid-edge-progress");
-        task.setTitle("Edge Progress Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-edge-progress");
+        DownloadTask task = new DownloadTask(job, "vid-edge-progress", "Edge Progress Video");
+        ReflectionTestUtils.setField(task, "id", "task-edge-progress");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1795,19 +1690,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldHandleProgressParsing_AdditionalEdgeCases(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-edge-2");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-edge-2");
-        task.setVideoId("vid-edge-2");
-        task.setTitle("Edge 2 Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-edge-2");
+        DownloadTask task = new DownloadTask(job, "vid-edge-2", "Edge 2 Video");
+        ReflectionTestUtils.setField(task, "id", "task-edge-2");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1875,19 +1765,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldHandleEmptyFilename_InOutputParsing(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-empty-filename");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-empty-filename");
-        task.setVideoId("vid-empty-filename");
-        task.setTitle("Empty Filename Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-empty-filename");
+        DownloadTask task = new DownloadTask(job, "vid-empty-filename", "Empty Filename Video");
+        ReflectionTestUtils.setField(task, "id", "task-empty-filename");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -1936,19 +1821,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldThrottleProgressUpdates(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-throttle");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-throttle");
-        task.setVideoId("vid-throttle");
-        task.setTitle("Throttle Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-throttle");
+        DownloadTask task = new DownloadTask(job, "vid-throttle", "Throttle Video");
+        ReflectionTestUtils.setField(task, "id", "task-throttle");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -2007,20 +1887,15 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldHandleFilenameWithoutExtension(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-no-ext");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-no-ext");
-        task.setVideoId("vid-no-ext");
-        task.setTitle("No Ext Video");
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-no-ext");
+        DownloadTask task = new DownloadTask(job, "vid-no-ext", "No Ext Video");
+        ReflectionTestUtils.setField(task, "id", "task-no-ext");
         task.setDescription("Test Description");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -2068,20 +1943,15 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldSkipThumbnail_WhenUrlMissing(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-no-thumb");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-no-thumb");
-        task.setVideoId("vid-no-thumb");
-        task.setTitle("No Thumb Video");
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-no-thumb");
+        DownloadTask task = new DownloadTask(job, "vid-no-thumb", "No Thumb Video");
+        ReflectionTestUtils.setField(task, "id", "task-no-thumb");
         task.setThumbnailUrl(null); // Missing URL
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -2129,20 +1999,15 @@ class ExecutorServiceImplTest {
         Files.writeString(sourceThumb, "fake image content");
         String thumbUrl = sourceThumb.toUri().toString();
 
-        DownloadJob job = new DownloadJob();
-        job.setId("job-thumb-ext");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-thumb-ext");
-        task.setVideoId("vid-thumb-ext");
-        task.setTitle("Thumb Ext Video");
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-thumb-ext");
+        DownloadTask task = new DownloadTask(job, "vid-thumb-ext", "Thumb Ext Video");
+        ReflectionTestUtils.setField(task, "id", "task-thumb-ext");
         task.setThumbnailUrl(thumbUrl);
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -2190,20 +2055,15 @@ class ExecutorServiceImplTest {
         // Setup invalid thumbnail URL (file not found)
         String thumbUrl = tempDir.resolve("non-existent.jpg").toUri().toString();
 
-        DownloadJob job = new DownloadJob();
-        job.setId("job-thumb-fail");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-thumb-fail");
-        task.setVideoId("vid-thumb-fail");
-        task.setTitle("Thumb Fail Video");
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-thumb-fail");
+        DownloadTask task = new DownloadTask(job, "vid-thumb-fail", "Thumb Fail Video");
+        ReflectionTestUtils.setField(task, "id", "task-thumb-fail");
         task.setThumbnailUrl(thumbUrl);
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -2251,20 +2111,15 @@ class ExecutorServiceImplTest {
         Files.writeString(sourceThumb, "fake image content");
         String thumbUrl = sourceThumb.toUri().toString();
 
-        DownloadJob job = new DownloadJob();
-        job.setId("job-thumb-no-ext");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-thumb-no-ext");
-        task.setVideoId("vid-thumb-no-ext");
-        task.setTitle("Thumb No Ext Video");
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-thumb-no-ext");
+        DownloadTask task = new DownloadTask(job, "vid-thumb-no-ext", "Thumb No Ext Video");
+        ReflectionTestUtils.setField(task, "id", "task-thumb-no-ext");
         task.setThumbnailUrl(thumbUrl);
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -2316,20 +2171,15 @@ class ExecutorServiceImplTest {
         Files.writeString(sourceThumb, "fake image content");
         String thumbUrl = sourceThumb.toUri().toString();
 
-        DownloadJob job = new DownloadJob();
-        job.setId("job-dot-path");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-dot-path");
-        task.setVideoId("vid-dot-path");
-        task.setTitle("Dot Path Video");
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-dot-path");
+        DownloadTask task = new DownloadTask(job, "vid-dot-path", "Dot Path Video");
+        ReflectionTestUtils.setField(task, "id", "task-dot-path");
         task.setThumbnailUrl(thumbUrl);
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -2375,20 +2225,15 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldHandleDescriptionSaveFailure(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-desc-fail");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-desc-fail");
-        task.setVideoId("vid-desc-fail");
-        task.setTitle("Desc Fail Video");
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-desc-fail");
+        DownloadTask task = new DownloadTask(job, "vid-desc-fail", "Desc Fail Video");
+        ReflectionTestUtils.setField(task, "id", "task-desc-fail");
         task.setDescription("Some description");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -2432,19 +2277,14 @@ class ExecutorServiceImplTest {
     @Test
     void processPendingTasks_ShouldHandleUpdateInterruption(@TempDir Path tempDir) throws Exception {
         // Setup
-        DownloadJob job = new DownloadJob();
-        job.setId("job-update-int");
-        job.setConfigName("default");
-        DownloadTask task = new DownloadTask();
-        task.setId("task-update-int");
-        task.setVideoId("vid-update-int");
-        task.setTitle("Update Int Video");
-        task.setJob(job);
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-update-int");
+        DownloadTask task = new DownloadTask(job, "vid-update-int", "Update Int Video");
+        ReflectionTestUtils.setField(task, "id", "task-update-int");
+        job.addTask(task);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig("default")).thenReturn(config);
@@ -2479,6 +2319,50 @@ class ExecutorServiceImplTest {
 
         // Verify interrupt flag was set and clear it
         assertThat(Thread.interrupted()).isTrue();
+    }
+
+    @Test
+    void processPendingTasks_ShouldProceed_WhenUpdateFails(@TempDir Path tempDir) throws Exception {
+        // Setup
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-update-fail");
+        DownloadTask task = new DownloadTask(job, "vid-update-fail", "Update Fail Video");
+        ReflectionTestUtils.setField(task, "id", "task-update-fail");
+        job.addTask(task);
+
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setYtDlpConfig(new YtDlpConfig("default"));
+
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("default")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+        when(downloadJobRepository.findByIdWithTasks("job-update-fail")).thenReturn(Optional.of(job));
+
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+
+        injectSynchronousExecutor(spyService);
+
+        // Mock update process to return non-zero exit code (simulate failure)
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new ByteArrayInputStream("Update error output".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(1);
+
+        Process downloadProcess = mock(Process.class);
+        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("[download] Destination: video.mp4\n".getBytes()));
+        when(downloadProcess.waitFor()).thenReturn(0);
+
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
+        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> !list.contains("-U")), any());
+
+        // Execute
+        spyService.processPendingTasks();
+
+        // Verify that download still proceeded despite update failure
+        verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
     }
 
     private void injectSynchronousExecutor(ExecutorServiceImpl spyService) throws Exception {
