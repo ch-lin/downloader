@@ -654,7 +654,7 @@ class ExecutorServiceImplTest {
         // Capture arguments to verify flags
         verify(spyService).startProcess(argThat(list
                 -> list.contains("--cookies")
-                && list.contains(cookiePath.toString())
+                && list.stream().anyMatch(s -> s.contains("yt-dlp-cookie-") && s.endsWith(".txt"))
                 && list.contains("-f") && list.contains("best")
                 && list.contains("--format-sort") && list.contains("res:1080")
                 && list.contains("--write-subs")
@@ -2363,6 +2363,226 @@ class ExecutorServiceImplTest {
 
         // Verify that download still proceeded despite update failure
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+    }
+
+    @Test
+    void processPendingTasks_ShouldHandleCookieCreationAndCleanupFailure(@TempDir Path tempDir) throws Exception {
+        // Setup Job and Task
+        DownloadJob job = new DownloadJob("cookie-ex-config");
+        ReflectionTestUtils.setField(job, "id", "job-cookie-ex");
+        DownloadTask task = new DownloadTask(job, "vid-cookie-ex", "Cookie Ex Video");
+        ReflectionTestUtils.setField(task, "id", "task-cookie-ex");
+        job.addTask(task);
+
+        // Setup Config
+        DownloaderConfig config = new DownloaderConfig("cookie-ex-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("cookie-ex-config");
+        ytDlp.setUseCookie(true);
+        config.setYtDlpConfig(ytDlp);
+
+        // Mocks
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("cookie-ex-config")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+        when(downloadJobRepository.findByIdWithTasks("job-cookie-ex")).thenReturn(Optional.of(job));
+
+        // Create Cookie File so Files.exists() passes
+        Path cookiePath = tempDir.resolve("cookie-ex-config-cookie.txt");
+        Files.writeString(cookiePath, "cookie-content");
+
+        // Spy
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+
+        injectSynchronousExecutor(spyService);
+
+        // Mock Process for Update
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new java.io.ByteArrayInputStream("".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(0);
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
+
+        // Mock Files using MockedStatic to trigger IOExceptions
+        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            mockedFiles.when(() -> Files.copy(any(Path.class), any(Path.class), any(java.nio.file.CopyOption[].class)))
+                    .thenThrow(new IOException("Simulated copy failure"));
+            mockedFiles.when(() -> Files.deleteIfExists(any(Path.class)))
+                    .thenThrow(new IOException("Simulated delete failure"));
+
+            // Execute
+            spyService.processPendingTasks();
+        }
+
+        // Verify task failed and message is properly set
+        verify(downloadTaskRepository, atLeastOnce()).save(argThat(t
+                -> t.getStatus() == TaskStatus.FAILED && t.getErrorMessage() != null && t.getErrorMessage().contains("Failed to create temporary cookie file")
+        ));
+    }
+
+    @Test
+    void processPendingTasks_ShouldHandleCookieFinallyCleanupFailure(@TempDir Path tempDir) throws Exception {
+        // Setup
+        DownloadJob job = new DownloadJob("cookie-finally-config");
+        ReflectionTestUtils.setField(job, "id", "job-cookie-finally");
+        DownloadTask task = new DownloadTask(job, "vid-cookie-finally", "Cookie Finally Video");
+        ReflectionTestUtils.setField(task, "id", "task-cookie-finally");
+        job.addTask(task);
+
+        DownloaderConfig config = new DownloaderConfig("cookie-finally-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("cookie-finally-config");
+        ytDlp.setUseCookie(true);
+        config.setYtDlpConfig(ytDlp);
+
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("cookie-finally-config")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+        when(downloadJobRepository.findByIdWithTasks("job-cookie-finally")).thenReturn(Optional.of(job));
+
+        Path cookiePath = tempDir.resolve("cookie-finally-config-cookie.txt");
+        Files.writeString(cookiePath, "cookie-content");
+
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+
+        injectSynchronousExecutor(spyService);
+
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new java.io.ByteArrayInputStream("".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(0);
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
+
+        // Force an execution error to quickly hit the finally block
+        doThrow(new IOException("Simulated IO Error")).when(spyService).startProcess(argThat(list -> !list.contains("-U")), any());
+
+        // Mock Files to fail ONLY on delete, this hits the finally block catch exactly
+        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            mockedFiles.when(() -> Files.deleteIfExists(any(Path.class)))
+                    .thenThrow(new IOException("Simulated delete failure in finally"));
+
+            spyService.processPendingTasks();
+        }
+
+        // Verify task failed with our simulated execution IO Error, showing that finally block executed cleanly.
+        verify(downloadTaskRepository, atLeastOnce()).save(argThat(t
+                -> t.getStatus() == TaskStatus.FAILED && t.getErrorMessage() != null && t.getErrorMessage().contains("I/O error during download: Simulated IO Error")
+        ));
+    }
+
+    @Test
+    void processPendingTasks_ShouldHandleCookieCreateTempFileFailure(@TempDir Path tempDir) throws Exception {
+        // Setup Job and Task
+        DownloadJob job = new DownloadJob("cookie-create-fail-config");
+        ReflectionTestUtils.setField(job, "id", "job-cookie-create-fail");
+        DownloadTask task = new DownloadTask(job, "vid-cookie-create-fail", "Cookie Create Fail Video");
+        ReflectionTestUtils.setField(task, "id", "task-cookie-create-fail");
+        job.addTask(task);
+
+        // Setup Config
+        DownloaderConfig config = new DownloaderConfig("cookie-create-fail-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("cookie-create-fail-config");
+        ytDlp.setUseCookie(true);
+        config.setYtDlpConfig(ytDlp);
+
+        // Mocks
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("cookie-create-fail-config")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+        when(downloadJobRepository.findByIdWithTasks("job-cookie-create-fail")).thenReturn(Optional.of(job));
+
+        // Create Cookie File so Files.exists() passes
+        Path cookiePath = tempDir.resolve("cookie-create-fail-config-cookie.txt");
+        Files.writeString(cookiePath, "cookie-content");
+
+        // Spy
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+
+        injectSynchronousExecutor(spyService);
+
+        // Mock Process for Update
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new java.io.ByteArrayInputStream("".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(0);
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
+
+        // Mock Files using MockedStatic to trigger IOExceptions
+        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            mockedFiles.when(() -> Files.createTempFile(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(java.nio.file.attribute.FileAttribute[].class)))
+                    .thenThrow(new IOException("Simulated createTempFile failure"));
+
+            // Execute
+            spyService.processPendingTasks();
+        }
+
+        // Verify task failed and message is properly set
+        verify(downloadTaskRepository, atLeastOnce()).save(argThat(t
+                -> t.getStatus() == TaskStatus.FAILED && t.getErrorMessage() != null && t.getErrorMessage().contains("Failed to create temporary cookie file")
+        ));
+    }
+
+    @Test
+    void processPendingTasks_ShouldHandleCookieCopyFailure(@TempDir Path tempDir) throws Exception {
+        // Setup Job and Task
+        DownloadJob job = new DownloadJob("cookie-copy-fail-config");
+        ReflectionTestUtils.setField(job, "id", "job-cookie-copy-fail");
+        DownloadTask task = new DownloadTask(job, "vid-cookie-copy-fail", "Cookie Copy Fail Video");
+        ReflectionTestUtils.setField(task, "id", "task-cookie-copy-fail");
+        job.addTask(task);
+
+        // Setup Config
+        DownloaderConfig config = new DownloaderConfig("cookie-copy-fail-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("cookie-copy-fail-config");
+        ytDlp.setUseCookie(true);
+        config.setYtDlpConfig(ytDlp);
+
+        // Mocks
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("cookie-copy-fail-config")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+        when(downloadJobRepository.findByIdWithTasks("job-cookie-copy-fail")).thenReturn(Optional.of(job));
+
+        // Create Cookie File so Files.exists() passes
+        Path cookiePath = tempDir.resolve("cookie-copy-fail-config-cookie.txt");
+        Files.writeString(cookiePath, "cookie-content");
+
+        // Spy
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+
+        injectSynchronousExecutor(spyService);
+
+        // Mock Process for Update
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new java.io.ByteArrayInputStream("".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(0);
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
+
+        // Mock Files using MockedStatic to trigger IOExceptions
+        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            mockedFiles.when(() -> Files.copy(any(Path.class), any(Path.class), any(java.nio.file.CopyOption[].class)))
+                    .thenThrow(new IOException("Simulated copy failure"));
+            // 不將 deleteIfExists 加入 Throw，這樣就會走正常 Delete 的成功邏輯，覆蓋沒有例外的行數
+
+            // Execute
+            spyService.processPendingTasks();
+        }
+
+        // Verify task failed and message is properly set
+        verify(downloadTaskRepository, atLeastOnce()).save(argThat(t
+                -> t.getStatus() == TaskStatus.FAILED && t.getErrorMessage() != null && t.getErrorMessage().contains("Failed to create temporary cookie file")
+        ));
     }
 
     private void injectSynchronousExecutor(ExecutorServiceImpl spyService) throws Exception {

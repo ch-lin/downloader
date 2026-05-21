@@ -81,7 +81,7 @@ class DownloaderServiceImplTest {
         when(configsService.getResolvedConfig(configName)).thenReturn(config);
         when(downloadJobRepository.save(Objects.requireNonNull(anyDownloadJob()))).thenAnswer(i -> {
             DownloadJob job = i.getArgument(0);
-            ReflectionTestUtils.setField(job, "id", "job-id");
+            ReflectionTestUtils.setField(Objects.requireNonNull(job), "id", "job-id");
             return job;
         });
 
@@ -141,7 +141,7 @@ class DownloaderServiceImplTest {
         when(configsService.getResolvedConfig(null)).thenReturn(config);
         when(downloadJobRepository.save(Objects.requireNonNull(anyDownloadJob()))).thenAnswer(i -> {
             DownloadJob job = i.getArgument(0);
-            ReflectionTestUtils.setField(job, "id", "job-id");
+            ReflectionTestUtils.setField(Objects.requireNonNull(job), "id", "job-id");
             return job;
         });
 

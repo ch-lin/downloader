@@ -344,13 +344,29 @@ public class ExecutorServiceImpl implements ExecutorService {
         command.add("node");
 
         YtDlpConfig ytDlpConfig = config.getYtDlpConfig();
+        Path tempCookiePath = null;
 
         // Add cookie file if it exists
         Path cookiePath = Paths.get(defaultProperties.getNetscapeCookieFolder(), config.getName() + "-cookie.txt");
         if (Boolean.TRUE.equals(ytDlpConfig.getUseCookie())) {
             if (Files.exists(cookiePath)) {
-                command.add("--cookies");
-                command.add(cookiePath.toString());
+                try {
+                    tempCookiePath = Files.createTempFile("yt-dlp-cookie-", ".txt");
+                    Files.copy(cookiePath, tempCookiePath, StandardCopyOption.REPLACE_EXISTING);
+                    command.add("--cookies");
+                    command.add(tempCookiePath.toString());
+                } catch (IOException e) {
+                    if (tempCookiePath != null) {
+                        try {
+                            Files.deleteIfExists(tempCookiePath);
+                        } catch (IOException ignored) {
+                        }
+                    }
+                    result.setSuccess(false);
+                    result.setErrorMessage("Failed to create temporary cookie file: " + e.getMessage());
+                    logger.error("Failed to create temporary cookie file for video {}: {}", task.getVideoId(), e.getMessage(), e);
+                    return result;
+                }
             } else {
                 logger.warn("Cookie usage enabled for config '{}', but cookie file not found at: {}", config.getName(), cookiePath);
             }
@@ -540,6 +556,14 @@ public class ExecutorServiceImpl implements ExecutorService {
             result.setErrorMessage("Download process was interrupted.");
             logger.error("Download process for video {} was interrupted.", task.getVideoId(), e);
             Thread.currentThread().interrupt(); // Preserve the interrupted status
+        } finally {
+            if (tempCookiePath != null) {
+                try {
+                    Files.deleteIfExists(tempCookiePath);
+                } catch (IOException e) {
+                    logger.warn("Failed to delete temporary cookie file: {}", tempCookiePath, e);
+                }
+            }
         }
         return result;
     }
