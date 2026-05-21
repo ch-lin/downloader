@@ -98,8 +98,7 @@ class ConfigsControllerTest {
         request.setName("new-config");
 
         CreateConfigCommand command = new CreateConfigCommand();
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("new-config");
+        DownloaderConfig config = new DownloaderConfig("new-config");
 
         when(configMapper.toCommand(any(CreateConfigRequest.class))).thenReturn(command);
         when(configsService.createConfig(command)).thenReturn(config);
@@ -126,8 +125,7 @@ class ConfigsControllerTest {
 
     @Test
     void getConfig_ShouldReturnConfig() throws Exception {
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
+        DownloaderConfig config = new DownloaderConfig("default");
 
         when(configsService.getConfig("default")).thenReturn(config);
 
@@ -154,8 +152,7 @@ class ConfigsControllerTest {
         UpdateConfigCommand command = new UpdateConfigCommand();
         command.setEnabled(true);
 
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("custom");
+        DownloaderConfig config = new DownloaderConfig("custom");
         config.setEnabled(true);
 
         when(configMapper.toCommand(any(UpdateConfigRequest.class))).thenReturn(command);

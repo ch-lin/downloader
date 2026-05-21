@@ -23,38 +23,43 @@
  *===========================================================================*/
 package ch.lin.downloader.backend.api.domain;
 
-import static ch.lin.downloader.backend.api.domain.DownloadJob.TABLE_NAME;
-
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.hibernate.annotations.ColumnDefault;
+
+import static ch.lin.downloader.backend.api.domain.DownloadJob.TABLE_NAME;
+import ch.lin.platform.domain.model.UuidAuditableEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
 /**
  * Represents a download job entity, which acts as a container for one or more
  * individual {@link DownloadTask} instances.
  */
-@Table(name = TABLE_NAME)
 @Entity
+@Table(name = TABLE_NAME, indexes = {
+    @Index(name = DownloadJob.ID_INDEX, columnList = UuidAuditableEntity.ID_COLUMN)
+})
 @Getter
-@Setter
-public class DownloadJob {
+@SuperBuilder(toBuilder = true)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+public class DownloadJob extends UuidAuditableEntity {
 
     /**
      * The name of the download job table in the database.
@@ -62,24 +67,36 @@ public class DownloadJob {
     public static final String TABLE_NAME = "download_job";
 
     /**
-     * The unique identifier for the download job.
+     * The name of the index for the ID column.
      */
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    public static final String ID_INDEX = "download_job_id_index";
+
+    /**
+     * The name of the status column in the database.
+     */
+    public static final String STATUS_COLUMN = "status";
+
+    /**
+     * The name of the config name column in the database.
+     */
+    public static final String CONFIG_NAME_COLUMN = "config_name";
 
     /**
      * The overall status of the job.
      */
-    @Enumerated(EnumType.STRING)
     @NotNull
-    @Column(nullable = false)
-    private JobStatus status;
+    @Enumerated(EnumType.STRING)
+    @ColumnDefault("'PENDING'")
+    @Column(name = DownloadJob.STATUS_COLUMN, nullable = false)
+    @Setter
+    @lombok.Builder.Default
+    private JobStatus status = JobStatus.PENDING;
 
     /**
      * The name of the {@link DownloaderConfig} used for this job.
      */
-    @Column(name = "config_name")
+    @Column(name = DownloadJob.CONFIG_NAME_COLUMN)
+    @Setter
     private String configName;
 
     /**
@@ -88,23 +105,19 @@ public class DownloadJob {
      * {@link DownloadTask} entity. All lifecycle operations are cascaded, and
      * orphaned tasks are removed.
      */
-    @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "job", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @lombok.Builder.Default
     private List<DownloadTask> tasks = new ArrayList<>();
 
     /**
-     * The timestamp when the job was created, automatically set on persistence.
+     * Creates a new DownloadJob with the specified config name.
+     *
+     * @param configName The name of the configuration to use.
      */
-    @NotNull
-    @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "TIMESTAMP")
-    private OffsetDateTime createdAt;
-
-    /**
-     * The timestamp when the job was last updated, automatically set on
-     * persistence or update.
-     */
-    @NotNull
-    @Column(name = "updated_at", nullable = false, columnDefinition = "TIMESTAMP")
-    private OffsetDateTime updatedAt;
+    public DownloadJob(String configName) {
+        this();
+        this.configName = configName;
+    }
 
     /**
      * Helper method to add a task to the job and set the bidirectional
@@ -113,26 +126,9 @@ public class DownloadJob {
      * @param task The task to add.
      */
     public void addTask(DownloadTask task) {
+        if (task.getJob() != this) {
+            throw new IllegalArgumentException("The task must be initialized with this job instance.");
+        }
         tasks.add(task);
-        task.setJob(this);
-    }
-
-    /**
-     * Sets the {@code createdAt} and {@code updatedAt} timestamps before the
-     * entity is first persisted.
-     */
-    @PrePersist
-    protected void onCreate() {
-        createdAt = OffsetDateTime.now();
-        updatedAt = OffsetDateTime.now();
-    }
-
-    /**
-     * Updates the {@code updatedAt} timestamp before the entity is updated in
-     * the database.
-     */
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = OffsetDateTime.now();
     }
 }

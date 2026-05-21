@@ -44,6 +44,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -81,11 +82,10 @@ class DownloaderControllerTest {
         request.setItems(List.of(item));
         request.setConfigName("default");
 
-        DownloadJob job = new DownloadJob();
-        DownloadTask task = new DownloadTask();
-        task.setId("task1");
-        task.setVideoId("vid1");
-        job.setTasks(List.of(task));
+        DownloadJob job = new DownloadJob("default");
+        DownloadTask task = new DownloadTask(job, "vid1", "Title 1");
+        ReflectionTestUtils.setField(task, "id", "task1");
+        job.addTask(task);
 
         when(downloadService.createDownloadJob(anyList(), eq("default"))).thenReturn(job);
 

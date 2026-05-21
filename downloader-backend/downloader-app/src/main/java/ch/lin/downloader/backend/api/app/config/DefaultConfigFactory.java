@@ -47,8 +47,7 @@ public class DefaultConfigFactory {
      * @return A new {@link DownloaderConfig} instance with default settings.
      */
     public DownloaderConfig create(DownloaderDefaultProperties properties) {
-        DownloaderConfig downloaderConfig = new DownloaderConfig();
-        downloaderConfig.setName("default");
+        DownloaderConfig downloaderConfig = new DownloaderConfig("default");
         downloaderConfig.setEnabled(true);
         downloaderConfig.setDuration(properties.getDuration());
         downloaderConfig.setStartDownloadAutomatically(properties.isStartDownloadAutomatically());
@@ -58,9 +57,8 @@ public class DefaultConfigFactory {
         downloaderConfig.setThreadPoolSize(properties.getThreadPoolSize());
 
         DownloaderDefaultProperties.Ytdlp ytdlpProps = properties.getYtdlp();
-        YtDlpConfig ytDlpConfig = new YtDlpConfig();
         // The name must match the parent for the relationship to work correctly
-        ytDlpConfig.setName("default");
+        YtDlpConfig ytDlpConfig = new YtDlpConfig("default");
         ytDlpConfig.setFormatFiltering(ytdlpProps.getFormatFiltering());
         ytDlpConfig.setFormatSorting(ytdlpProps.getFormatSorting());
         ytDlpConfig.setRemuxVideo(ytdlpProps.getRemuxVideo());

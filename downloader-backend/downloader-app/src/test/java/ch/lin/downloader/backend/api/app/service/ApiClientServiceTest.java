@@ -64,7 +64,7 @@ class ApiClientServiceTest {
 
     @Test
     void updateItem_ShouldSkip_WhenClientIdIsMissing() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         // ClientId is null by default
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -77,7 +77,7 @@ class ApiClientServiceTest {
 
     @Test
     void updateItem_ShouldSkip_WhenClientIdIsBlank() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setClientId("   ");
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -90,7 +90,7 @@ class ApiClientServiceTest {
 
     @Test
     void updateItem_ShouldSendPatch_WhenConfigIsValid() throws Exception {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setClientId("client-id");
         config.setClientSecret("client-secret");
         when(configsService.getResolvedConfig(null)).thenReturn(config);
@@ -121,7 +121,7 @@ class ApiClientServiceTest {
 
     @Test
     void updateItemStatus_ShouldSendPatch_WhenConfigIsValid() throws Exception {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setClientId("client-id");
         config.setClientSecret("client-secret");
         when(configsService.getResolvedConfig(null)).thenReturn(config);
@@ -147,7 +147,7 @@ class ApiClientServiceTest {
 
     @Test
     void updateItem_ShouldHandleAuthFailure() throws Exception {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setClientId("client-id");
         config.setClientSecret("client-secret");
         when(configsService.getResolvedConfig(null)).thenReturn(config);

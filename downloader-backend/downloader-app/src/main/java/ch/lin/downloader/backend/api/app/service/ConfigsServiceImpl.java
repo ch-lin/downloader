@@ -145,8 +145,7 @@ public class ConfigsServiceImpl implements ConfigsService {
             downloaderConfigRepository.saveAll(enabledConfigs);
         }
 
-        DownloaderConfig newDownloaderConfig = new DownloaderConfig();
-        newDownloaderConfig.setName(configName);
+        DownloaderConfig newDownloaderConfig = new DownloaderConfig(configName);
         newDownloaderConfig.setEnabled(request.getEnabled());
         newDownloaderConfig.setDuration(request.getDuration());
         newDownloaderConfig.setStartDownloadAutomatically(request.getStartDownloadAutomatically());
@@ -156,8 +155,7 @@ public class ConfigsServiceImpl implements ConfigsService {
         newDownloaderConfig.setThreadPoolSize(request.getThreadPoolSize());
 
         YtDlpConfigCommand ytDlpConfigDto = request.getYtDlpConfig();
-        YtDlpConfig newYtDlpConfig = new YtDlpConfig();
-        newYtDlpConfig.setName(configName); // Match the name for the relationship
+        YtDlpConfig newYtDlpConfig = new YtDlpConfig(configName); // Match the name for the relationship
         newYtDlpConfig.setFormatFiltering(ytDlpConfigDto.getFormatFiltering());
         newYtDlpConfig.setFormatSorting(ytDlpConfigDto.getFormatSorting());
         newYtDlpConfig.setRemuxVideo(ytDlpConfigDto.getRemuxVideo());
@@ -297,10 +295,8 @@ public class ConfigsServiceImpl implements ConfigsService {
 
         DownloaderConfig downloaderConfig = downloaderConfigRepository.findByName(name)
                 .orElseGet(() -> {
-                    DownloaderConfig newConfig = new DownloaderConfig();
-                    newConfig.setName(name);
-                    YtDlpConfig newYtDlpConfig = new YtDlpConfig();
-                    newYtDlpConfig.setName(name); // Match name for relationship
+                    DownloaderConfig newConfig = new DownloaderConfig(name);
+                    YtDlpConfig newYtDlpConfig = new YtDlpConfig(name); // Match name for relationship
                     newConfig.setYtDlpConfig(newYtDlpConfig);
                     return newConfig;
                 });

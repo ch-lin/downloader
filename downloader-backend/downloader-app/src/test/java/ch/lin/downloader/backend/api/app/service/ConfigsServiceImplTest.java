@@ -83,8 +83,7 @@ class ConfigsServiceImplTest {
     @BeforeEach
     @SuppressWarnings("unused")
     void setUp() {
-        defaultYtDlpConfig = new YtDlpConfig();
-        defaultYtDlpConfig.setName("default");
+        defaultYtDlpConfig = new YtDlpConfig("default");
         defaultYtDlpConfig.setFormatFiltering("best");
         defaultYtDlpConfig.setFormatSorting("res:1080");
         defaultYtDlpConfig.setRemuxVideo("mp4");
@@ -102,8 +101,7 @@ class ConfigsServiceImplTest {
         defaultYtDlpConfig.setNoProgress(true);
         defaultYtDlpConfig.setUseCookie(false);
 
-        defaultConfig = new DownloaderConfig();
-        defaultConfig.setName("default");
+        defaultConfig = new DownloaderConfig("default");
         defaultConfig.setEnabled(true);
         defaultConfig.setYtDlpConfig(defaultYtDlpConfig);
         defaultConfig.setDuration(60);
@@ -132,8 +130,7 @@ class ConfigsServiceImplTest {
 
     @Test
     void getAllConfigs_ShouldReturnConfigs_WhenDbNotEmpty() {
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("custom");
+        DownloaderConfig config = new DownloaderConfig("custom");
         config.setEnabled(true);
 
         when(downloaderConfigRepository.count()).thenReturn(1L);
@@ -172,7 +169,7 @@ class ConfigsServiceImplTest {
     void createConfig_ShouldThrow_WhenConfigExists() {
         CreateConfigCommand command = mock(CreateConfigCommand.class);
         when(command.getName()).thenReturn("existing");
-        when(downloaderConfigRepository.findByName("existing")).thenReturn(Optional.of(new DownloaderConfig()));
+        when(downloaderConfigRepository.findByName("existing")).thenReturn(Optional.of(new DownloaderConfig("existing")));
 
         assertThatThrownBy(() -> configsService.createConfig(command))
                 .isInstanceOf(InvalidRequestException.class)
@@ -188,8 +185,7 @@ class ConfigsServiceImplTest {
         command.setYtDlpConfig(ytDlpConfigCommand);
 
         when(downloaderConfigRepository.findByName("new")).thenReturn(Optional.empty());
-        DownloaderConfig otherConfig = new DownloaderConfig();
-        otherConfig.setName("other");
+        DownloaderConfig otherConfig = new DownloaderConfig("other");
         otherConfig.setEnabled(true);
         when(downloaderConfigRepository.findAllByEnabledTrue()).thenReturn(List.of(otherConfig));
         when(downloaderConfigRepository.save(Objects.requireNonNull(anyDownloaderConfig()))).thenAnswer(i -> i.getArguments()[0]);
@@ -252,8 +248,7 @@ class ConfigsServiceImplTest {
 
     @Test
     void deleteAllConfigs_ShouldDeleteCookies(@TempDir Path tempDir) throws IOException {
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("configToDelete");
+        DownloaderConfig config = new DownloaderConfig("configToDelete");
         when(downloaderConfigRepository.findAll()).thenReturn(List.of(config));
         when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
 
@@ -275,8 +270,7 @@ class ConfigsServiceImplTest {
     @Test
     void deleteConfig_ShouldDeleteAndEnableDefault_WhenNoOthersEnabled() {
         String configName = "toDelete";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
+        DownloaderConfig config = new DownloaderConfig(configName);
         when(downloaderConfigRepository.findByName(configName)).thenReturn(Optional.of(config));
         when(downloaderConfigRepository.findAllByEnabledTrue()).thenReturn(Collections.emptyList());
         when(defaultProperties.getNetscapeCookieFolder()).thenReturn("build/tmp/cookies");
@@ -305,13 +299,11 @@ class ConfigsServiceImplTest {
     @Test
     void deleteConfig_ShouldNotEnableDefault_WhenOtherConfigsEnabled() {
         String configName = "toDelete";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
+        DownloaderConfig config = new DownloaderConfig(configName);
         when(downloaderConfigRepository.findByName(configName)).thenReturn(Optional.of(config));
         when(defaultProperties.getNetscapeCookieFolder()).thenReturn("build/tmp/cookies");
 
-        DownloaderConfig otherConfig = new DownloaderConfig();
-        otherConfig.setName("other");
+        DownloaderConfig otherConfig = new DownloaderConfig("other");
         otherConfig.setEnabled(true);
         when(downloaderConfigRepository.findAllByEnabledTrue()).thenReturn(List.of(otherConfig));
 
@@ -324,8 +316,7 @@ class ConfigsServiceImplTest {
     @Test
     void deleteConfig_ShouldNotSaveDefault_WhenDefaultAlreadyEnabled() {
         String configName = "toDelete";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
+        DownloaderConfig config = new DownloaderConfig(configName);
         when(downloaderConfigRepository.findByName(configName)).thenReturn(Optional.of(config));
         when(downloaderConfigRepository.findAllByEnabledTrue()).thenReturn(Collections.emptyList());
         when(defaultProperties.getNetscapeCookieFolder()).thenReturn("build/tmp/cookies");
@@ -343,11 +334,10 @@ class ConfigsServiceImplTest {
     @Test
     void deleteConfig_ShouldDeleteCookieFile(@TempDir Path tempDir) throws IOException {
         String configName = "configToDelete";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
+        DownloaderConfig config = new DownloaderConfig(configName);
         when(downloaderConfigRepository.findByName(configName)).thenReturn(Optional.of(config));
         when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
-        when(downloaderConfigRepository.findAllByEnabledTrue()).thenReturn(List.of(new DownloaderConfig()));
+        when(downloaderConfigRepository.findAllByEnabledTrue()).thenReturn(List.of(new DownloaderConfig("other")));
 
         Path cookiePath = tempDir.resolve(configName + "-cookie.txt");
         Files.writeString(cookiePath, "content");
@@ -360,10 +350,9 @@ class ConfigsServiceImplTest {
     @Test
     void getResolvedConfig_ShouldReturnConfig_WhenExists() {
         String configName = "custom";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
+        DownloaderConfig config = new DownloaderConfig(configName);
         config.setDuration(100);
-        YtDlpConfig ytDlpConfig = new YtDlpConfig();
+        YtDlpConfig ytDlpConfig = new YtDlpConfig(configName);
         config.setYtDlpConfig(ytDlpConfig);
 
         when(downloaderConfigRepository.findByName(configName)).thenReturn(Optional.of(config));
@@ -394,10 +383,9 @@ class ConfigsServiceImplTest {
 
     @Test
     void getResolvedConfig_ShouldReturnEnabledConfig_WhenNameIsNull() {
-        DownloaderConfig enabledConfig = new DownloaderConfig();
-        enabledConfig.setName("enabled");
+        DownloaderConfig enabledConfig = new DownloaderConfig("enabled");
         enabledConfig.setEnabled(true);
-        enabledConfig.setYtDlpConfig(new YtDlpConfig());
+        enabledConfig.setYtDlpConfig(new YtDlpConfig("enabled"));
 
         when(downloaderConfigRepository.findFirstByEnabledTrue()).thenReturn(Optional.of(enabledConfig));
         when(defaultConfigFactory.create(defaultProperties)).thenReturn(defaultConfig);
@@ -410,9 +398,8 @@ class ConfigsServiceImplTest {
     @Test
     void getConfig_ShouldReturnConfig_WhenExists() {
         String configName = "existing";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig(configName);
+        config.setYtDlpConfig(new YtDlpConfig(configName));
 
         when(downloaderConfigRepository.findByName(configName)).thenReturn(Optional.of(config));
         when(defaultProperties.getNetscapeCookieFolder()).thenReturn("build/tmp/cookies");
@@ -451,10 +438,9 @@ class ConfigsServiceImplTest {
         YtDlpConfigCommand ytDlpConfigCommand = new YtDlpConfigCommand();
         command.setYtDlpConfig(ytDlpConfigCommand);
 
-        DownloaderConfig existing = new DownloaderConfig();
-        existing.setName("existing");
+        DownloaderConfig existing = new DownloaderConfig("existing");
         existing.setEnabled(false);
-        existing.setYtDlpConfig(new YtDlpConfig());
+        existing.setYtDlpConfig(new YtDlpConfig("existing"));
 
         when(downloaderConfigRepository.findByName("existing")).thenReturn(Optional.of(existing));
         when(downloaderConfigRepository.save(Objects.requireNonNull(anyDownloaderConfig()))).thenAnswer(i -> i.getArguments()[0]);
@@ -517,10 +503,9 @@ class ConfigsServiceImplTest {
 
         command.setYtDlpConfig(ytDlpConfigCommand);
 
-        DownloaderConfig existing = new DownloaderConfig();
-        existing.setName("existing");
+        DownloaderConfig existing = new DownloaderConfig("existing");
         existing.setEnabled(false);
-        existing.setYtDlpConfig(new YtDlpConfig());
+        existing.setYtDlpConfig(new YtDlpConfig("existing"));
 
         when(downloaderConfigRepository.findByName("existing")).thenReturn(Optional.of(existing));
         when(downloaderConfigRepository.save(Objects.requireNonNull(anyDownloaderConfig()))).thenAnswer(i -> i.getArguments()[0]);
@@ -562,10 +547,9 @@ class ConfigsServiceImplTest {
         command.setEnabled(true);
         // ytDlpConfig is null by default
 
-        DownloaderConfig existing = new DownloaderConfig();
-        existing.setName("existing");
+        DownloaderConfig existing = new DownloaderConfig("existing");
         existing.setEnabled(false);
-        YtDlpConfig existingYtDlp = new YtDlpConfig();
+        YtDlpConfig existingYtDlp = new YtDlpConfig("existing");
         existingYtDlp.setFormatFiltering("old-filter");
         existing.setYtDlpConfig(existingYtDlp);
 
@@ -587,9 +571,8 @@ class ConfigsServiceImplTest {
         ytDlpConfigCommand.setCookie("new-cookie");
         command.setYtDlpConfig(ytDlpConfigCommand);
 
-        DownloaderConfig existing = new DownloaderConfig();
-        existing.setName("existing");
-        existing.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig existing = new DownloaderConfig("existing");
+        existing.setYtDlpConfig(new YtDlpConfig("existing"));
 
         when(downloaderConfigRepository.findByName("existing")).thenReturn(Optional.of(existing));
         when(downloaderConfigRepository.save(Objects.requireNonNull(anyDownloaderConfig()))).thenAnswer(i -> i.getArguments()[0]);
@@ -610,9 +593,8 @@ class ConfigsServiceImplTest {
         ytDlpConfigCommand.setCookie("");
         command.setYtDlpConfig(ytDlpConfigCommand);
 
-        DownloaderConfig existing = new DownloaderConfig();
-        existing.setName("existing");
-        existing.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig existing = new DownloaderConfig("existing");
+        existing.setYtDlpConfig(new YtDlpConfig("existing"));
 
         when(downloaderConfigRepository.findByName("existing")).thenReturn(Optional.of(existing));
         when(downloaderConfigRepository.save(Objects.requireNonNull(anyDownloaderConfig()))).thenAnswer(i -> i.getArguments()[0]);
@@ -634,16 +616,14 @@ class ConfigsServiceImplTest {
         YtDlpConfigCommand ytDlpConfigCommand = new YtDlpConfigCommand();
         command.setYtDlpConfig(ytDlpConfigCommand);
 
-        DownloaderConfig otherConfig = new DownloaderConfig();
-        otherConfig.setName("otherConfig");
+        DownloaderConfig otherConfig = new DownloaderConfig("otherConfig");
         otherConfig.setEnabled(true);
 
         when(downloaderConfigRepository.findAllByEnabledTrue()).thenReturn(List.of(otherConfig));
 
-        DownloaderConfig targetConfig = new DownloaderConfig();
-        targetConfig.setName("targetConfig");
+        DownloaderConfig targetConfig = new DownloaderConfig("targetConfig");
         targetConfig.setEnabled(false);
-        targetConfig.setYtDlpConfig(new YtDlpConfig());
+        targetConfig.setYtDlpConfig(new YtDlpConfig("targetConfig"));
         when(downloaderConfigRepository.findByName("targetConfig")).thenReturn(Optional.of(targetConfig));
 
         when(downloaderConfigRepository.save(Objects.requireNonNull(anyDownloaderConfig()))).thenAnswer(i -> i.getArguments()[0]);
@@ -662,10 +642,9 @@ class ConfigsServiceImplTest {
         YtDlpConfigCommand ytDlpConfigCommand = new YtDlpConfigCommand();
         command.setYtDlpConfig(ytDlpConfigCommand);
 
-        DownloaderConfig myConfig = new DownloaderConfig();
-        myConfig.setName("myConfig");
+        DownloaderConfig myConfig = new DownloaderConfig("myConfig");
         myConfig.setEnabled(true);
-        myConfig.setYtDlpConfig(new YtDlpConfig());
+        myConfig.setYtDlpConfig(new YtDlpConfig("myConfig"));
 
         when(downloaderConfigRepository.findByName("myConfig")).thenReturn(Optional.of(myConfig));
         when(downloaderConfigRepository.save(Objects.requireNonNull(anyDownloaderConfig()))).thenAnswer(i -> i.getArguments()[0]);
@@ -686,9 +665,8 @@ class ConfigsServiceImplTest {
     @Test
     void getResolvedConfig_ShouldPopulateAllMissingFields_WhenFieldsAreNull() {
         String configName = "sparseConfig";
-        DownloaderConfig sparseConfig = new DownloaderConfig();
-        sparseConfig.setName(configName);
-        sparseConfig.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig sparseConfig = new DownloaderConfig(configName);
+        sparseConfig.setYtDlpConfig(new YtDlpConfig(configName));
 
         when(downloaderConfigRepository.findByName(configName)).thenReturn(Optional.of(sparseConfig));
         when(defaultConfigFactory.create(defaultProperties)).thenReturn(defaultConfig);
@@ -741,8 +719,7 @@ class ConfigsServiceImplTest {
     @Test
     void getResolvedConfig_ShouldNotOverwriteFields_WhenFieldsArePresent() {
         String configName = "fullConfig";
-        DownloaderConfig fullConfig = new DownloaderConfig();
-        fullConfig.setName(configName);
+        DownloaderConfig fullConfig = new DownloaderConfig(configName);
         fullConfig.setDuration(999);
         fullConfig.setStartDownloadAutomatically(false);
         fullConfig.setRemoveCompletedJobAutomatically(true);
@@ -750,8 +727,7 @@ class ConfigsServiceImplTest {
         fullConfig.setClientSecret("existing-client-secret");
         fullConfig.setThreadPoolSize(5);
 
-        YtDlpConfig ytDlpConfig = new YtDlpConfig();
-        ytDlpConfig.setName(configName);
+        YtDlpConfig ytDlpConfig = new YtDlpConfig(configName);
         ytDlpConfig.setFormatFiltering("existing-filter");
         ytDlpConfig.setFormatSorting("existing-sort");
         ytDlpConfig.setRemuxVideo("mkv");
@@ -805,8 +781,7 @@ class ConfigsServiceImplTest {
     @Test
     void getConfig_ShouldReturnEarlyInReadCookie_WhenYtDlpConfigIsNull() {
         String configName = "noYtDlp";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
+        DownloaderConfig config = new DownloaderConfig(configName);
         config.setYtDlpConfig(null);
 
         when(downloaderConfigRepository.findByName(configName)).thenReturn(Optional.of(config));
@@ -820,9 +795,8 @@ class ConfigsServiceImplTest {
     @Test
     void getConfig_ShouldLogException_WhenCookieFileReadFails(@TempDir Path tempDir) throws IOException {
         String configName = "badCookie";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
-        config.setYtDlpConfig(new YtDlpConfig());
+        DownloaderConfig config = new DownloaderConfig(configName);
+        config.setYtDlpConfig(new YtDlpConfig(configName));
 
         when(downloaderConfigRepository.findByName(configName)).thenReturn(Optional.of(config));
         when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
@@ -876,12 +850,11 @@ class ConfigsServiceImplTest {
     @Test
     void deleteConfig_ShouldHandleCookieDeleteFailure(@TempDir Path tempDir) throws IOException {
         String configName = "failDeleteCookie";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
+        DownloaderConfig config = new DownloaderConfig(configName);
 
         when(downloaderConfigRepository.findByName(configName)).thenReturn(Optional.of(config));
         when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
-        when(downloaderConfigRepository.findAllByEnabledTrue()).thenReturn(List.of(new DownloaderConfig()));
+        when(downloaderConfigRepository.findAllByEnabledTrue()).thenReturn(List.of(new DownloaderConfig("other")));
 
         // Create a non-empty directory to cause DirectoryNotEmptyException on deleteIfExists
         Path cookiePath = tempDir.resolve(configName + "-cookie.txt");
@@ -896,6 +869,6 @@ class ConfigsServiceImplTest {
 
     private DownloaderConfig anyDownloaderConfig() {
         any(DownloaderConfig.class);
-        return new DownloaderConfig();
+        return new DownloaderConfig("default");
     }
 }

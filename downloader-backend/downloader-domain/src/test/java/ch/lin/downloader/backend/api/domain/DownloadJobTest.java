@@ -26,20 +26,21 @@ package ch.lin.downloader.backend.api.domain;
 import java.time.OffsetDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class DownloadJobTest {
 
     @Test
-    void testSettersAndGetters() {
-        DownloadJob job = new DownloadJob();
-        job.setId("job-1");
+    void testConstructorSettersAndGetters() {
+        DownloadJob job = new DownloadJob("default-config");
+        ReflectionTestUtils.setField(job, "id", "job-1");
         job.setStatus(JobStatus.PENDING);
-        job.setConfigName("default-config");
 
         OffsetDateTime now = OffsetDateTime.now();
-        job.setCreatedAt(now);
-        job.setUpdatedAt(now);
+        ReflectionTestUtils.setField(job, "createdAt", now);
+        ReflectionTestUtils.setField(job, "updatedAt", now);
 
         assertThat(job.getId()).isEqualTo("job-1");
         assertThat(job.getStatus()).isEqualTo(JobStatus.PENDING);
@@ -51,9 +52,9 @@ class DownloadJobTest {
 
     @Test
     void testAddTask() {
-        DownloadJob job = new DownloadJob();
-        DownloadTask task = new DownloadTask();
-        task.setId("task-1");
+        DownloadJob job = new DownloadJob("default-config");
+        DownloadTask task = new DownloadTask(job, "vid-1", "Video Title");
+        ReflectionTestUtils.setField(task, "id", "task-1");
 
         job.addTask(task);
 
@@ -62,24 +63,13 @@ class DownloadJobTest {
     }
 
     @Test
-    void testPrePersist() {
-        DownloadJob job = new DownloadJob();
-        job.onCreate();
+    void testAddTask_ShouldThrowException_WhenTaskBelongsToAnotherJob() {
+        DownloadJob job1 = new DownloadJob("config-1");
+        DownloadJob job2 = new DownloadJob("config-2");
+        DownloadTask taskForJob2 = new DownloadTask(job2, "vid-1", "Video Title");
 
-        assertThat(job.getCreatedAt()).isNotNull();
-        assertThat(job.getUpdatedAt()).isNotNull();
-    }
-
-    @Test
-    void testPreUpdate() throws InterruptedException {
-        DownloadJob job = new DownloadJob();
-        job.onCreate();
-        OffsetDateTime initialUpdatedAt = job.getUpdatedAt();
-
-        Thread.sleep(10); // Ensure time advances
-        job.onUpdate();
-
-        assertThat(job.getUpdatedAt()).isAfter(initialUpdatedAt);
-        assertThat(job.getCreatedAt()).isNotNull();
+        assertThatThrownBy(() -> job1.addTask(taskForJob2))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("The task must be initialized with this job instance.");
     }
 }

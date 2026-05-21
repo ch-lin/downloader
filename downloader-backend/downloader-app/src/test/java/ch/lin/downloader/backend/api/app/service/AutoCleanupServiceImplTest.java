@@ -70,7 +70,7 @@ class AutoCleanupServiceImplTest {
 
     @Test
     void init_ShouldStartScheduler_WhenConfigEnabled() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setRemoveCompletedJobAutomatically(true);
         config.setDuration(60);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
@@ -87,7 +87,7 @@ class AutoCleanupServiceImplTest {
 
     @Test
     void init_ShouldNotStartScheduler_WhenConfigDisabled() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setRemoveCompletedJobAutomatically(false);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -99,7 +99,7 @@ class AutoCleanupServiceImplTest {
 
     @Test
     void start_ShouldScheduleTask_WhenNotRunning() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -115,7 +115,7 @@ class AutoCleanupServiceImplTest {
 
     @Test
     void start_ShouldNotSchedule_WhenAlreadyRunning() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -131,7 +131,7 @@ class AutoCleanupServiceImplTest {
 
     @Test
     void start_ShouldRestart_WhenTaskIsDone() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -148,7 +148,7 @@ class AutoCleanupServiceImplTest {
 
     @Test
     void stop_ShouldCancelTask_WhenRunning() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -164,7 +164,7 @@ class AutoCleanupServiceImplTest {
 
     @Test
     void stop_ShouldNotCancel_WhenTaskIsDone() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -186,7 +186,7 @@ class AutoCleanupServiceImplTest {
 
     @Test
     void cleanupCompletedJobs_ShouldDeleteJobs_WhenJobsExist() {
-        DownloadJob job = new DownloadJob();
+        DownloadJob job = new DownloadJob("default");
         when(downloadJobRepository.findAllByStatus(JobStatus.COMPLETED)).thenReturn(List.of(job));
 
         autoCleanupService.cleanupCompletedJobs();
@@ -205,7 +205,7 @@ class AutoCleanupServiceImplTest {
 
     @Test
     void isSchedulerRunning_ShouldReturnFalse_WhenCancelled() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
@@ -219,7 +219,7 @@ class AutoCleanupServiceImplTest {
 
     @Test
     void isSchedulerRunning_ShouldReturnFalse_WhenDone() {
-        DownloaderConfig config = new DownloaderConfig();
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setDuration(30);
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 

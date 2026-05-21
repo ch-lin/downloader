@@ -40,6 +40,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import ch.lin.downloader.backend.api.app.repository.DownloadJobRepository;
 import ch.lin.downloader.backend.api.app.repository.DownloadTaskRepository;
@@ -73,15 +74,14 @@ class DownloaderServiceImplTest {
     @Test
     void createDownloadJob_ShouldCreateJobAndTasks_WhenConfigIsValid() {
         String configName = "default";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
+        DownloaderConfig config = new DownloaderConfig(configName);
         config.setStartDownloadAutomatically(true);
         config.setRemoveCompletedJobAutomatically(true);
 
         when(configsService.getResolvedConfig(configName)).thenReturn(config);
         when(downloadJobRepository.save(Objects.requireNonNull(anyDownloadJob()))).thenAnswer(i -> {
             DownloadJob job = i.getArgument(0);
-            job.setId("job-id");
+            ReflectionTestUtils.setField(job, "id", "job-id");
             return job;
         });
 
@@ -106,8 +106,7 @@ class DownloaderServiceImplTest {
     @Test
     void createDownloadJob_ShouldThrow_WhenConfigNameMismatch() {
         String requestedConfig = "custom";
-        DownloaderConfig resolvedConfig = new DownloaderConfig();
-        resolvedConfig.setName("default"); // Fallback happened
+        DownloaderConfig resolvedConfig = new DownloaderConfig("default"); // Fallback happened
 
         when(configsService.getResolvedConfig(requestedConfig)).thenReturn(resolvedConfig);
 
@@ -121,8 +120,7 @@ class DownloaderServiceImplTest {
     @Test
     void createDownloadJob_ShouldNotStartServices_WhenFlagsDisabled() {
         String configName = "manual";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName(configName);
+        DownloaderConfig config = new DownloaderConfig(configName);
         config.setStartDownloadAutomatically(false);
         config.setRemoveCompletedJobAutomatically(false);
 
@@ -138,13 +136,12 @@ class DownloaderServiceImplTest {
     @Test
     void createDownloadJob_ShouldSucceed_WhenConfigNameIsNull() {
         String configName = null;
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
+        DownloaderConfig config = new DownloaderConfig("default");
 
         when(configsService.getResolvedConfig(null)).thenReturn(config);
         when(downloadJobRepository.save(Objects.requireNonNull(anyDownloadJob()))).thenAnswer(i -> {
             DownloadJob job = i.getArgument(0);
-            job.setId("job-id");
+            ReflectionTestUtils.setField(job, "id", "job-id");
             return job;
         });
 
@@ -156,8 +153,7 @@ class DownloaderServiceImplTest {
     @Test
     void createDownloadJob_ShouldSucceed_WhenConfigNameIsBlank() {
         String configName = "   ";
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
+        DownloaderConfig config = new DownloaderConfig("default");
 
         when(configsService.getResolvedConfig(configName)).thenReturn(config);
         when(downloadJobRepository.save(Objects.requireNonNull(anyDownloadJob()))).thenAnswer(i -> i.getArgument(0));
@@ -177,13 +173,12 @@ class DownloaderServiceImplTest {
     @Test
     void getJobById_ShouldReturnDetails_WhenJobExists() {
         String jobId = "job-1";
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
         job.setStatus(JobStatus.COMPLETED);
-        job.setConfigName("default");
 
-        DownloadTask task = new DownloadTask();
-        task.setId("task-1");
+        DownloadTask task = new DownloadTask(job, "vid", "title");
+        ReflectionTestUtils.setField(task, "id", "task-1");
         task.setStatus(TaskStatus.DOWNLOADED);
         task.setProgress(100.0);
         job.addTask(task);
@@ -211,12 +206,10 @@ class DownloaderServiceImplTest {
     @Test
     void getTaskById_ShouldReturnDetails_WhenTaskExists() {
         String taskId = "task-1";
-        DownloadTask task = new DownloadTask();
-        task.setId(taskId);
-        task.setVideoId("vid");
-        DownloadJob job = new DownloadJob();
-        job.setId("job-1");
-        task.setJob(job);
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-1");
+        DownloadTask task = new DownloadTask(job, "vid", "Title");
+        ReflectionTestUtils.setField(task, "id", taskId);
 
         when(downloadTaskRepository.findById(taskId)).thenReturn(Optional.of(task));
 
@@ -242,17 +235,16 @@ class DownloaderServiceImplTest {
         String taskId = "task-1";
         String jobId = "job-1";
 
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
 
-        DownloadTask taskToDelete = new DownloadTask();
-        taskToDelete.setId(taskId);
-        taskToDelete.setJob(job);
+        DownloadTask taskToDelete = new DownloadTask(job, "vid1", "title");
+        ReflectionTestUtils.setField(taskToDelete, "id", taskId);
         taskToDelete.setStatus(TaskStatus.PENDING);
 
         // Setup job with remaining tasks
-        DownloadTask remainingTask = new DownloadTask();
-        remainingTask.setId("task-2");
+        DownloadTask remainingTask = new DownloadTask(job, "vid2", "title2");
+        ReflectionTestUtils.setField(remainingTask, "id", "task-2");
         remainingTask.setStatus(TaskStatus.DOWNLOADED);
         job.addTask(remainingTask); // Only remaining task after deletion logic (mocked)
 
@@ -273,17 +265,16 @@ class DownloaderServiceImplTest {
         String taskId = "task-1";
         String jobId = "job-1";
 
-        DownloadTask taskToDelete = new DownloadTask();
-        taskToDelete.setId(taskId);
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
-        taskToDelete.setJob(job);
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
+        DownloadTask taskToDelete = new DownloadTask(job, "vid", "title");
+        ReflectionTestUtils.setField(taskToDelete, "id", taskId);
 
         when(downloadTaskRepository.findById(taskId)).thenReturn(Optional.of(taskToDelete));
 
         // Job has no tasks left
-        DownloadJob emptyJob = new DownloadJob();
-        emptyJob.setId(jobId);
+        DownloadJob emptyJob = new DownloadJob("default");
+        ReflectionTestUtils.setField(emptyJob, "id", jobId);
         when(downloadJobRepository.findByIdWithTasks(jobId)).thenReturn(Optional.of(emptyJob));
 
         downloaderService.deleteTaskById(taskId);
@@ -298,11 +289,10 @@ class DownloaderServiceImplTest {
         String taskId = "task-1";
         String jobId = "job-1";
 
-        DownloadTask task = new DownloadTask();
-        task.setId(taskId);
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
-        task.setJob(job);
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
+        DownloadTask task = new DownloadTask(job, "vid", "title");
+        ReflectionTestUtils.setField(task, "id", taskId);
 
         when(downloadTaskRepository.findById(taskId)).thenReturn(Optional.of(task));
         when(downloadJobRepository.findByIdWithTasks(jobId)).thenReturn(Optional.empty());
@@ -319,13 +309,12 @@ class DownloaderServiceImplTest {
         String taskId = "task-1";
         String jobId = "job-1";
 
-        DownloadTask taskToDelete = new DownloadTask();
-        taskToDelete.setId(taskId);
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
-        taskToDelete.setJob(job);
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
+        DownloadTask taskToDelete = new DownloadTask(job, "vid1", "title");
+        ReflectionTestUtils.setField(taskToDelete, "id", taskId);
 
-        DownloadTask failedTask = new DownloadTask();
+        DownloadTask failedTask = new DownloadTask(job, "vid2", "title2");
         failedTask.setStatus(TaskStatus.FAILED);
         job.addTask(failedTask);
 
@@ -343,17 +332,16 @@ class DownloaderServiceImplTest {
         String taskId = "task-1";
         String jobId = "job-1";
 
-        DownloadTask taskToDelete = new DownloadTask();
-        taskToDelete.setId(taskId);
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
-        taskToDelete.setJob(job);
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
+        DownloadTask taskToDelete = new DownloadTask(job, "vid", "title");
+        ReflectionTestUtils.setField(taskToDelete, "id", taskId);
 
-        DownloadTask failedTask = new DownloadTask();
+        DownloadTask failedTask = new DownloadTask(job, "vid2", "title");
         failedTask.setStatus(TaskStatus.FAILED);
         job.addTask(failedTask);
 
-        DownloadTask completedTask = new DownloadTask();
+        DownloadTask completedTask = new DownloadTask(job, "vid3", "title3");
         completedTask.setStatus(TaskStatus.DOWNLOADED);
         job.addTask(completedTask);
 
@@ -379,8 +367,8 @@ class DownloaderServiceImplTest {
     @Test
     void deleteJobById_ShouldDeleteJob_WhenJobExists() {
         String jobId = "job-1";
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
 
         when(downloadJobRepository.findById(jobId)).thenReturn(Optional.of(job));
 
@@ -410,15 +398,14 @@ class DownloaderServiceImplTest {
         String taskId = "task-1";
         String jobId = "job-1";
 
-        DownloadTask taskToDelete = new DownloadTask();
-        taskToDelete.setId(taskId);
-        DownloadJob job = new DownloadJob();
-        job.setId(jobId);
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", jobId);
         job.setStatus(JobStatus.IN_PROGRESS);
-        taskToDelete.setJob(job);
+        DownloadTask taskToDelete = new DownloadTask(job, "vid", "title");
+        ReflectionTestUtils.setField(taskToDelete, "id", taskId);
 
         // Remaining tasks
-        DownloadTask pendingTask = new DownloadTask();
+        DownloadTask pendingTask = new DownloadTask(job, "vid2", "title");
         pendingTask.setStatus(TaskStatus.PENDING);
         job.addTask(pendingTask);
 
@@ -433,7 +420,7 @@ class DownloaderServiceImplTest {
 
     private DownloadJob anyDownloadJob() {
         any(DownloadJob.class);
-        return new DownloadJob();
+        return new DownloadJob("default");
     }
 
     private String anyNonNullString() {

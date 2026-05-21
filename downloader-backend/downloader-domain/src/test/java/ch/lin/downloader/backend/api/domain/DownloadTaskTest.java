@@ -27,17 +27,16 @@ import java.time.OffsetDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class DownloadTaskTest {
 
     @Test
-    void testSettersAndGetters() {
-        DownloadTask task = new DownloadTask();
-        task.setId("task-1");
-        DownloadJob job = new DownloadJob();
-        task.setJob(job);
-        task.setVideoId("vid-1");
-        task.setTitle("Video Title");
+    void testConstructorSettersAndGetters() {
+        DownloadJob job = new DownloadJob("default-config");
+        DownloadTask task = new DownloadTask(job, "vid-1", "Video Title");
+        ReflectionTestUtils.setField(task, "id", "task-1");
+
         task.setThumbnailUrl("http://thumb.url");
         task.setDescription("Description");
         task.setStatus(TaskStatus.PENDING);
@@ -47,8 +46,8 @@ class DownloadTaskTest {
         task.setErrorMessage("Error");
 
         OffsetDateTime now = OffsetDateTime.now();
-        task.setCreatedAt(now);
-        task.setUpdatedAt(now);
+        ReflectionTestUtils.setField(task, "createdAt", now);
+        ReflectionTestUtils.setField(task, "updatedAt", now);
 
         assertThat(task.getId()).isEqualTo("task-1");
         assertThat(task.getJob()).isEqualTo(job);
@@ -63,27 +62,5 @@ class DownloadTaskTest {
         assertThat(task.getErrorMessage()).isEqualTo("Error");
         assertThat(task.getCreatedAt()).isEqualTo(now);
         assertThat(task.getUpdatedAt()).isEqualTo(now);
-    }
-
-    @Test
-    void testPrePersist() {
-        DownloadTask task = new DownloadTask();
-        task.onCreate();
-
-        assertThat(task.getCreatedAt()).isNotNull();
-        assertThat(task.getUpdatedAt()).isNotNull();
-    }
-
-    @Test
-    void testPreUpdate() throws InterruptedException {
-        DownloadTask task = new DownloadTask();
-        task.onCreate();
-        OffsetDateTime initialUpdatedAt = task.getUpdatedAt();
-
-        Thread.sleep(10); // Ensure time advances
-        task.onUpdate();
-
-        assertThat(task.getUpdatedAt()).isAfter(initialUpdatedAt);
-        assertThat(task.getCreatedAt()).isNotNull();
     }
 }

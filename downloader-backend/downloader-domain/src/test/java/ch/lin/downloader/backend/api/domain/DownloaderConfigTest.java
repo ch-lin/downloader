@@ -29,9 +29,8 @@ import org.junit.jupiter.api.Test;
 class DownloaderConfigTest {
 
     @Test
-    void testNoArgsConstructorAndSetters() {
-        DownloaderConfig config = new DownloaderConfig();
-        config.setName("default");
+    void testConstructorAndSetters() {
+        DownloaderConfig config = new DownloaderConfig("default");
         config.setEnabled(true);
         config.setDuration(3600);
         config.setStartDownloadAutomatically(true);
@@ -40,8 +39,7 @@ class DownloaderConfigTest {
         config.setClientSecret("client-secret");
         config.setThreadPoolSize(5);
 
-        YtDlpConfig ytDlpConfig = new YtDlpConfig();
-        ytDlpConfig.setName("default");
+        YtDlpConfig ytDlpConfig = new YtDlpConfig("default");
         config.setYtDlpConfig(ytDlpConfig);
 
         assertThat(config.getName()).isEqualTo("default");
@@ -56,41 +54,23 @@ class DownloaderConfigTest {
     }
 
     @Test
-    void testAllArgsConstructor() {
-        YtDlpConfig ytDlpConfig = new YtDlpConfig();
-        ytDlpConfig.setName("test-config");
-
-        DownloaderConfig config = new DownloaderConfig(
-                "test",
-                true,
-                120,
-                false,
-                true,
-                "cid",
-                "csec",
-                10,
-                ytDlpConfig
-        );
-
-        assertThat(config.getName()).isEqualTo("test");
-        assertThat(config.getEnabled()).isTrue();
-        assertThat(config.getDuration()).isEqualTo(120);
-        assertThat(config.getStartDownloadAutomatically()).isFalse();
-        assertThat(config.getRemoveCompletedJobAutomatically()).isTrue();
-        assertThat(config.getClientId()).isEqualTo("cid");
-        assertThat(config.getClientSecret()).isEqualTo("csec");
-        assertThat(config.getThreadPoolSize()).isEqualTo(10);
-        assertThat(config.getYtDlpConfig()).isEqualTo(ytDlpConfig);
-    }
-
-    @Test
     void testEqualsAndHashCode() {
-        YtDlpConfig ytDlpConfig1 = new YtDlpConfig();
-        ytDlpConfig1.setName("config1");
+        YtDlpConfig ytDlpConfig1 = new YtDlpConfig("config1");
 
-        DownloaderConfig config1 = new DownloaderConfig("default", true, 3600, true, false, "id", "secret", 5, ytDlpConfig1);
-        DownloaderConfig config2 = new DownloaderConfig("default", true, 3600, true, false, "id", "secret", 5, ytDlpConfig1);
-        DownloaderConfig config3 = new DownloaderConfig("other", true, 3600, true, false, "id", "secret", 5, ytDlpConfig1);
+        DownloaderConfig config1 = new DownloaderConfig("default");
+        config1.setEnabled(true);
+        config1.setDuration(3600);
+        config1.setYtDlpConfig(ytDlpConfig1);
+
+        DownloaderConfig config2 = new DownloaderConfig("default");
+        config2.setEnabled(true);
+        config2.setDuration(3600);
+        config2.setYtDlpConfig(ytDlpConfig1);
+
+        DownloaderConfig config3 = new DownloaderConfig("other");
+        config3.setEnabled(true);
+        config3.setDuration(3600);
+        config3.setYtDlpConfig(ytDlpConfig1);
 
         assertThat(config1).isEqualTo(config2);
         assertThat(config1.hashCode()).isEqualTo(config2.hashCode());

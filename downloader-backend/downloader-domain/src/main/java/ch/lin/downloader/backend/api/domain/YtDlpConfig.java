@@ -24,19 +24,24 @@
 package ch.lin.downloader.backend.api.domain;
 
 import static ch.lin.downloader.backend.api.domain.YtDlpConfig.TABLE_NAME;
+import ch.lin.platform.domain.model.AuditableEntity;
+import ch.lin.platform.domain.model.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
 /**
  * Represents the yt-dlp specific configuration entity, stored in the database.
@@ -45,16 +50,19 @@ import lombok.Setter;
  * yt-dlp executable. It is designed to have a one-to-one relationship with a
  * {@link DownloaderConfig} entity.
  */
-@Table(name = TABLE_NAME)
 @Entity
+@Table(name = TABLE_NAME, indexes = {
+    @Index(name = YtDlpConfig.ID_INDEX, columnList = BaseEntity.ID_COLUMN),
+    @Index(name = YtDlpConfig.NAME_INDEX, columnList = YtDlpConfig.NAME_COLUMN)}, uniqueConstraints = {
+    @UniqueConstraint(columnNames = YtDlpConfig.NAME_COLUMN)})
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @EqualsAndHashCode(of = {"name", "formatFiltering", "formatSorting", "remuxVideo", "writeDescription", "writeSubs",
     "subLang", "writeAutoSubs", "subFormat", "outputTemplate", "overwrite", "keepVideo", "extractAudio", "audioFormat",
     "audioQuality", "noProgress", "useCookie"}, callSuper = false)
-public class YtDlpConfig {
+@SuperBuilder(toBuilder = true)
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+public class YtDlpConfig extends AuditableEntity {
 
     /**
      * The name of the yt-dlp configuration table in the database.
@@ -62,9 +70,19 @@ public class YtDlpConfig {
     public static final String TABLE_NAME = "ytdlp_config";
 
     /**
+     * The name of the index for the ID column.
+     */
+    public static final String ID_INDEX = "ytdlp_config_id_index";
+
+    /**
      * The name of the name column in the database.
      */
     public static final String NAME_COLUMN = "name";
+
+    /**
+     * The name of the index for the name column.
+     */
+    public static final String NAME_INDEX = "ytdlp_config_name_index";
 
     /**
      * The name of the format filtering column in the database.
@@ -147,66 +165,74 @@ public class YtDlpConfig {
     public static final String USE_COOKIE_COLUMN = "use_cookie";
 
     /**
-     * The unique name of the configuration, serving as the primary key. This
-     * name must match the name of the parent {@link DownloaderConfig}.
+     * The unique name of the configuration. This name must match the name of
+     * the parent {@link DownloaderConfig}.
      */
-    @Id
     @NotNull
-    @Column(name = YtDlpConfig.NAME_COLUMN)
+    @Column(name = YtDlpConfig.NAME_COLUMN, nullable = false)
     private String name;
 
     /**
      * The filter criteria for selecting video formats.
      */
     @Column(name = YtDlpConfig.FORMAT_FILTERING_COLUMN)
+    @Setter
     private String formatFiltering;
 
     /**
      * The sorting order for video formats.
      */
     @Column(name = YtDlpConfig.FORMAT_SORTING_COLUMN)
+    @Setter
     private String formatSorting;
 
     /**
      * The target container format to remux the video into (e.g., "mp4").
      */
     @Column(name = YtDlpConfig.REMUX_VIDEO_COLUMN)
+    @Setter
     private String remuxVideo;
 
     /**
      * Whether to write the video description to a .description file.
      */
     @Column(name = YtDlpConfig.WRITE_DESCRIPTION_COLUMN)
+    @Setter
     private Boolean writeDescription;
 
     /**
      * Whether to download subtitles for the video.
      */
     @Column(name = YtDlpConfig.WRITE_SUBS_COLUMN)
+    @Setter
     private Boolean writeSubs;
 
     /**
      * The language(s) of the subtitles to download (e.g., "en", "ja.*").
      */
     @Column(name = YtDlpConfig.SUB_LANG_COLUMN)
+    @Setter
     private String subLang;
 
     /**
      * Whether to download automatically generated subtitles.
      */
     @Column(name = YtDlpConfig.WRITE_AUTO_SUBS_COLUMN)
+    @Setter
     private Boolean writeAutoSubs;
 
     /**
      * The format for the downloaded subtitles (e.g., "srt", "vtt").
      */
     @Column(name = YtDlpConfig.SUB_FORMAT_COLUMN)
+    @Setter
     private String subFormat;
 
     /**
      * The template for the output filename.
      */
     @Column(name = YtDlpConfig.OUTPUT_TEMPLATE_COLUMN)
+    @Setter
     private String outputTemplate;
 
     /**
@@ -215,6 +241,7 @@ public class YtDlpConfig {
      */
     @Enumerated(EnumType.STRING)
     @Column(name = YtDlpConfig.OVERWRITE_COLUMN)
+    @Setter
     private OverwriteOption overwrite;
 
     /**
@@ -222,36 +249,42 @@ public class YtDlpConfig {
      * after extracting audio).
      */
     @Column(name = YtDlpConfig.KEEP_VIDEO_COLUMN)
+    @Setter
     private Boolean keepVideo;
 
     /**
      * Whether to extract the audio from the video file.
      */
     @Column(name = YtDlpConfig.EXTRACT_AUDIO_COLUMN)
+    @Setter
     private Boolean extractAudio;
 
     /**
      * The format for the extracted audio (e.g., "m4a", "mp3").
      */
     @Column(name = YtDlpConfig.AUDIO_FORMAT_COLUMN)
+    @Setter
     private String audioFormat;
 
     /**
      * The quality of the extracted audio (0 is best, 9 is worst for VBR).
      */
     @Column(name = YtDlpConfig.AUDIO_QUALITY_COLUMN)
+    @Setter
     private Integer audioQuality;
 
     /**
      * Whether to disable the progress bar.
      */
     @Column(name = YtDlpConfig.NO_PROGRESS_COLUMN)
+    @Setter
     private Boolean noProgress;
 
     /**
      * Whether to use the cookie file for authentication.
      */
     @Column(name = YtDlpConfig.USE_COOKIE_COLUMN)
+    @Setter
     private Boolean useCookie;
 
     /**
@@ -260,5 +293,16 @@ public class YtDlpConfig {
      * the database.
      */
     @Transient
+    @Setter
     private String cookie;
+
+    /**
+     * Creates a new YtDlpConfig with the specified name.
+     *
+     * @param name The unique name for this configuration.
+     */
+    public YtDlpConfig(String name) {
+        this();
+        this.name = name;
+    }
 }

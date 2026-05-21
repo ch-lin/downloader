@@ -35,7 +35,7 @@ import ch.lin.downloader.backend.api.domain.YtDlpConfig;
  * Spring Data JPA repository for {@link YtDlpConfig} entities.
  */
 @Repository
-public interface YtDlpConfigRepository extends JpaRepository<YtDlpConfig, String> {
+public interface YtDlpConfigRepository extends JpaRepository<YtDlpConfig, Long> {
 
     /**
      * Deletes all {@link YtDlpConfig} records from the database.
