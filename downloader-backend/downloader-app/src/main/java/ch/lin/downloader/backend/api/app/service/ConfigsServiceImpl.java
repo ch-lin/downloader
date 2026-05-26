@@ -153,6 +153,7 @@ public class ConfigsServiceImpl implements ConfigsService {
         newDownloaderConfig.setClientId(request.getClientId());
         newDownloaderConfig.setClientSecret(request.getClientSecret());
         newDownloaderConfig.setThreadPoolSize(request.getThreadPoolSize());
+        newDownloaderConfig.setMaxQueueSize(request.getMaxQueueSize());
 
         YtDlpConfigCommand ytDlpConfigDto = request.getYtDlpConfig();
         YtDlpConfig newYtDlpConfig = new YtDlpConfig(configName); // Match the name for the relationship
@@ -172,6 +173,9 @@ public class ConfigsServiceImpl implements ConfigsService {
         newYtDlpConfig.setAudioQuality(ytDlpConfigDto.getAudioQuality());
         newYtDlpConfig.setNoProgress(ytDlpConfigDto.getNoProgress());
         newYtDlpConfig.setUseCookie(ytDlpConfigDto.getUseCookie());
+        newYtDlpConfig.setSleepInterval(ytDlpConfigDto.getSleepInterval());
+        newYtDlpConfig.setMaxSleepInterval(ytDlpConfigDto.getMaxSleepInterval());
+        newYtDlpConfig.setSleepSubtitles(ytDlpConfigDto.getSleepSubtitles());
 
         newDownloaderConfig.setYtDlpConfig(newYtDlpConfig);
 
@@ -323,6 +327,9 @@ public class ConfigsServiceImpl implements ConfigsService {
         if (request.getThreadPoolSize() != null) {
             downloaderConfig.setThreadPoolSize(request.getThreadPoolSize());
         }
+        if (request.getMaxQueueSize() != null) {
+            downloaderConfig.setMaxQueueSize(request.getMaxQueueSize());
+        }
 
         // Update the associated YtDlpConfig fields
         YtDlpConfig ytDlpConfig = downloaderConfig.getYtDlpConfig();
@@ -376,6 +383,15 @@ public class ConfigsServiceImpl implements ConfigsService {
             }
             if (ytDlpConfigDto.getUseCookie() != null) {
                 ytDlpConfig.setUseCookie(ytDlpConfigDto.getUseCookie());
+            }
+            if (ytDlpConfigDto.getSleepInterval() != null) {
+                ytDlpConfig.setSleepInterval(ytDlpConfigDto.getSleepInterval());
+            }
+            if (ytDlpConfigDto.getMaxSleepInterval() != null) {
+                ytDlpConfig.setMaxSleepInterval(ytDlpConfigDto.getMaxSleepInterval());
+            }
+            if (ytDlpConfigDto.getSleepSubtitles() != null) {
+                ytDlpConfig.setSleepSubtitles(ytDlpConfigDto.getSleepSubtitles());
             }
 
             // Handle cookie content, allowing for deletion with an empty string
@@ -460,6 +476,9 @@ public class ConfigsServiceImpl implements ConfigsService {
             if (dbConfig.getThreadPoolSize() == null) {
                 dbConfig.setThreadPoolSize(defaultConfig.getThreadPoolSize());
             }
+            if (dbConfig.getMaxQueueSize() == null) {
+                dbConfig.setMaxQueueSize(defaultConfig.getMaxQueueSize());
+            }
 
             YtDlpConfig dbYtDlpConfig = dbConfig.getYtDlpConfig();
             // Fallback to default properties if the config values are blank
@@ -510,6 +529,15 @@ public class ConfigsServiceImpl implements ConfigsService {
             }
             if (dbYtDlpConfig.getUseCookie() == null) {
                 dbYtDlpConfig.setUseCookie(defaultYtDlpConfig.getUseCookie());
+            }
+            if (dbYtDlpConfig.getSleepInterval() == null) {
+                dbYtDlpConfig.setSleepInterval(defaultYtDlpConfig.getSleepInterval());
+            }
+            if (dbYtDlpConfig.getMaxSleepInterval() == null) {
+                dbYtDlpConfig.setMaxSleepInterval(defaultYtDlpConfig.getMaxSleepInterval());
+            }
+            if (dbYtDlpConfig.getSleepSubtitles() == null) {
+                dbYtDlpConfig.setSleepSubtitles(defaultYtDlpConfig.getSleepSubtitles());
             }
             return dbConfig;
         }).orElseGet(() -> {

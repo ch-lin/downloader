@@ -58,7 +58,7 @@ import lombok.experimental.SuperBuilder;
 @Getter
 @EqualsAndHashCode(of = {"name", "formatFiltering", "formatSorting", "remuxVideo", "writeDescription", "writeSubs",
     "subLang", "writeAutoSubs", "subFormat", "outputTemplate", "overwrite", "keepVideo", "extractAudio", "audioFormat",
-    "audioQuality", "noProgress", "useCookie"}, callSuper = false)
+    "audioQuality", "noProgress", "useCookie", "sleepInterval", "maxSleepInterval", "sleepSubtitles"}, callSuper = false)
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -163,6 +163,21 @@ public class YtDlpConfig extends AuditableEntity {
      * The name of the use cookie column in the database.
      */
     public static final String USE_COOKIE_COLUMN = "use_cookie";
+
+    /**
+     * The name of the sleep interval column in the database.
+     */
+    public static final String SLEEP_INTERVAL_COLUMN = "sleep_interval";
+
+    /**
+     * The name of the max sleep interval column in the database.
+     */
+    public static final String MAX_SLEEP_INTERVAL_COLUMN = "max_sleep_interval";
+
+    /**
+     * The name of the sleep subtitles column in the database.
+     */
+    public static final String SLEEP_SUBTITLES_COLUMN = "sleep_subtitles";
 
     /**
      * The unique name of the configuration. This name must match the name of
@@ -286,6 +301,27 @@ public class YtDlpConfig extends AuditableEntity {
     @Column(name = YtDlpConfig.USE_COOKIE_COLUMN)
     @Setter
     private Boolean useCookie;
+
+    /**
+     * Number of seconds to sleep before each download.
+     */
+    @Column(name = YtDlpConfig.SLEEP_INTERVAL_COLUMN)
+    @Setter
+    private Integer sleepInterval;
+
+    /**
+     * Upper bound of a range for randomized sleep before each download.
+     */
+    @Column(name = YtDlpConfig.MAX_SLEEP_INTERVAL_COLUMN)
+    @Setter
+    private Integer maxSleepInterval;
+
+    /**
+     * Number of seconds to sleep before each subtitle download.
+     */
+    @Column(name = YtDlpConfig.SLEEP_SUBTITLES_COLUMN)
+    @Setter
+    private Integer sleepSubtitles;
 
     /**
      * A transient field to hold the content of the cookie file. This is used to

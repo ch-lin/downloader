@@ -21,62 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *===========================================================================*/
-package ch.lin.downloader.backend.api.app.service.command;
-
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+package ch.lin.downloader.backend.api.domain;
 
 /**
- * Command object for updating an existing configuration.
+ * Represents the type of a specific download sub-task.
+ * <p>
+ * A sub-task can represent an individual phase or component of a video
+ * download, such as extracting audio or downloading the main video stream.
  */
-@Getter
-@Setter
-@NoArgsConstructor
-public class UpdateConfigCommand {
-
+public enum SubTaskType {
     /**
-     * Indicates whether the configuration is enabled.
+     * Sub-task for downloading or extracting the audio stream.
      */
-    private Boolean enabled;
-
+    AUDIO,
     /**
-     * The duration in seconds for the scheduler interval.
+     * Sub-task for downloading the video stream or merging the final video
+     * file.
      */
-    private Integer duration;
-
+    VIDEO,
     /**
-     * Whether to start downloading automatically when a job is created.
+     * Sub-task for downloading the video thumbnail.
      */
-    private Boolean startDownloadAutomatically;
-
+    THUMBNAIL,
     /**
-     * Whether to remove completed jobs automatically.
+     * Sub-task for downloading video subtitles.
      */
-    private Boolean removeCompletedJobAutomatically;
-
-    /**
-     * The client ID for accessing the YouTube Hub's REST API.
-     */
-    private String clientId;
-
-    /**
-     * The client secret for accessing the YouTube Hub's REST API.
-     */
-    private String clientSecret;
-
-    /**
-     * The size of the thread pool for concurrent downloads.
-     */
-    private Integer threadPoolSize;
-
-    /**
-     * The maximum size of the executor queue before skipping new task fetches.
-     */
-    private Integer maxQueueSize;
-
-    /**
-     * The yt-dlp specific configuration settings.
-     */
-    private YtDlpConfigCommand ytDlpConfig;
+    SUBTITLE
 }

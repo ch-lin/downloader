@@ -49,6 +49,9 @@ class YtDlpConfigCommandTest {
         command.setOverwrite(OverwriteOption.FORCE);
         command.setNoProgress(true);
         command.setCookie("cookie-data");
+        command.setSleepInterval(10);
+        command.setMaxSleepInterval(60);
+        command.setSleepSubtitles(2);
 
         assertThat(command.getFormatFiltering()).isEqualTo("best");
         assertThat(command.getFormatSorting()).isEqualTo("res");
@@ -66,5 +69,8 @@ class YtDlpConfigCommandTest {
         assertThat(command.getOverwrite()).isEqualTo(OverwriteOption.FORCE);
         assertThat(command.getNoProgress()).isTrue();
         assertThat(command.getCookie()).isEqualTo("cookie-data");
+        assertThat(command.getSleepInterval()).isEqualTo(10);
+        assertThat(command.getMaxSleepInterval()).isEqualTo(60);
+        assertThat(command.getSleepSubtitles()).isEqualTo(2);
     }
 }

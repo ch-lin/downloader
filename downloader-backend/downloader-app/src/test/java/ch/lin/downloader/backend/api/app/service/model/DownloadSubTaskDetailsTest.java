@@ -23,40 +23,43 @@
  *===========================================================================*/
 package ch.lin.downloader.backend.api.app.service.model;
 
-import java.time.OffsetDateTime;
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
+import ch.lin.downloader.backend.api.domain.SubTaskType;
 import ch.lin.downloader.backend.api.domain.TaskStatus;
 
-class DownloadTaskDetailsTest {
+class DownloadSubTaskDetailsTest {
 
     @Test
     void testGettersAndSetters() {
-        DownloadTaskDetails details = new DownloadTaskDetails();
-        details.setId("task-1");
-        details.setJobId("job-1");
-        details.setVideoId("vid-1");
-        details.setTitle("Title");
-        details.setThumbnailUrl("url");
-        details.setDescription("desc");
+        DownloadSubTaskDetails details = new DownloadSubTaskDetails();
+        details.setId("subtask-1");
+        details.setType(SubTaskType.VIDEO);
         details.setStatus(TaskStatus.DOWNLOADING);
-        OffsetDateTime now = OffsetDateTime.now();
-        details.setCreatedAt(now);
-        details.setUpdatedAt(now);
-        details.setSubTasks(List.of());
+        details.setProgress(75.5);
+        details.setFilePath("/tmp/video.mp4");
+        details.setFileSize(2048L);
+        details.setErrorMessage("error");
 
-        assertThat(details.getId()).isEqualTo("task-1");
-        assertThat(details.getJobId()).isEqualTo("job-1");
-        assertThat(details.getVideoId()).isEqualTo("vid-1");
-        assertThat(details.getTitle()).isEqualTo("Title");
-        assertThat(details.getThumbnailUrl()).isEqualTo("url");
-        assertThat(details.getDescription()).isEqualTo("desc");
+        assertThat(details.getId()).isEqualTo("subtask-1");
+        assertThat(details.getType()).isEqualTo(SubTaskType.VIDEO);
         assertThat(details.getStatus()).isEqualTo(TaskStatus.DOWNLOADING);
-        assertThat(details.getCreatedAt()).isEqualTo(now);
-        assertThat(details.getUpdatedAt()).isEqualTo(now);
-        assertThat(details.getSubTasks()).isEmpty();
+        assertThat(details.getProgress()).isEqualTo(75.5);
+        assertThat(details.getFilePath()).isEqualTo("/tmp/video.mp4");
+        assertThat(details.getFileSize()).isEqualTo(2048L);
+        assertThat(details.getErrorMessage()).isEqualTo("error");
+    }
+
+    @Test
+    void testAllArgsConstructor() {
+        DownloadSubTaskDetails details = new DownloadSubTaskDetails("subtask-1", SubTaskType.AUDIO, TaskStatus.DOWNLOADED, 100.0, "/tmp/audio.mp3", 1024L, null);
+        assertThat(details.getId()).isEqualTo("subtask-1");
+        assertThat(details.getType()).isEqualTo(SubTaskType.AUDIO);
+        assertThat(details.getStatus()).isEqualTo(TaskStatus.DOWNLOADED);
+        assertThat(details.getProgress()).isEqualTo(100.0);
+        assertThat(details.getFilePath()).isEqualTo("/tmp/audio.mp3");
+        assertThat(details.getFileSize()).isEqualTo(1024L);
+        assertThat(details.getErrorMessage()).isNull();
     }
 }

@@ -32,6 +32,10 @@ public enum TaskStatus {
      */
     PENDING,
     /**
+     * The task is picked up from the DB and queued in the executor thread pool.
+     */
+    QUEUED,
+    /**
      * The task is currently being processed (downloading).
      */
     DOWNLOADING,

@@ -36,8 +36,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,9 +60,11 @@ import ch.lin.downloader.backend.api.app.repository.DownloadTaskRepository;
 import ch.lin.downloader.backend.api.app.service.model.DownloadResult;
 import ch.lin.downloader.backend.api.common.exception.UpdateException;
 import ch.lin.downloader.backend.api.domain.DownloadJob;
+import ch.lin.downloader.backend.api.domain.DownloadSubTask;
 import ch.lin.downloader.backend.api.domain.DownloadTask;
 import ch.lin.downloader.backend.api.domain.DownloaderConfig;
 import ch.lin.downloader.backend.api.domain.JobStatus;
+import ch.lin.downloader.backend.api.domain.SubTaskType;
 import ch.lin.downloader.backend.api.domain.TaskStatus;
 import ch.lin.downloader.backend.api.domain.YtDlpConfig;
 import jakarta.annotation.PostConstruct;
@@ -85,9 +90,9 @@ public class ExecutorServiceImpl implements ExecutorService {
     private static final Pattern PROGRESS_PATTERN = Pattern.compile(
             "\\[download\\]\\s+([\\d.]+)%");
     private static final Pattern DESTINATION_PATTERN = Pattern.compile(
-            "\\[(?:download|ExtractAudio|ffmpeg)\\] Destination: (.*)");
+            "\\[.*?\\](?:.*?)Destination:\\s+(.*)");
     private static final Pattern MERGER_DESTINATION_PATTERN = Pattern.compile(
-            "\\[Merger\\] Merging formats into \"(.*)\"");
+            "\\[.*?\\] Merging formats into \"(.*)\"");
     private static final Pattern ALREADY_DOWNLOADED_PATTERN = Pattern.compile(
             "\\[download\\] (.*) has already been downloaded");
     private static final Pattern POST_PROCESSOR_DESTINATION_PATTERN = Pattern.compile(
@@ -130,6 +135,34 @@ public class ExecutorServiceImpl implements ExecutorService {
      */
     @PostConstruct
     public void init() {
+        // Clean up tasks that were left in DOWNLOADING state due to a crash or unexpected exception
+        try {
+            List<DownloadTask> stuckTasks = downloadTaskRepository.findAllByStatusWithJob(TaskStatus.DOWNLOADING);
+            if (stuckTasks != null && !stuckTasks.isEmpty()) {
+                logger.info("Found {} tasks stuck in DOWNLOADING state. Resetting them to FAILED and notifying Hub.", stuckTasks.size());
+                for (DownloadTask task : stuckTasks) {
+                    task.setStatus(TaskStatus.FAILED);
+                    downloadTaskRepository.save(task);
+                    apiClientService.updateItemStatus(task.getVideoId(), task.getId(), TaskStatus.FAILED);
+                    if (task.getJob() != null) {
+                        updateJobStatus(task.getJob().getId());
+                    }
+                }
+            }
+
+            // Also reset QUEUED tasks back to PENDING so they can be picked up again
+            List<DownloadTask> queuedTasks = downloadTaskRepository.findAllByStatusWithJob(TaskStatus.QUEUED);
+            if (queuedTasks != null && !queuedTasks.isEmpty()) {
+                logger.info("Found {} tasks stuck in QUEUED state. Resetting them to PENDING.", queuedTasks.size());
+                for (DownloadTask task : queuedTasks) {
+                    task.setStatus(TaskStatus.PENDING);
+                    downloadTaskRepository.save(task);
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Could not reset stuck tasks during initialization: {}", e.getMessage());
+        }
+
         // On application startup, check the active configuration's
         // startDownloadAutomatically flag.
         DownloaderConfig activeConfig = configsService.getResolvedConfig(null);
@@ -184,9 +217,12 @@ public class ExecutorServiceImpl implements ExecutorService {
         logger.debug("Scheduler running: Checking for pending download tasks.");
         adjustThreadPoolSize();
 
+        DownloaderConfig globalConfig = configsService.getResolvedConfig(null);
+
         // Backpressure: Check if the executor queue is already busy.
         if (downloadExecutor instanceof java.util.concurrent.ThreadPoolExecutor tpe) {
-            if (tpe.getQueue().size() > 50) {
+            int maxQueueSize = Optional.ofNullable(globalConfig.getMaxQueueSize()).orElse(50);
+            if (tpe.getQueue().size() > maxQueueSize) {
                 logger.info("Executor queue is busy ({} tasks waiting). Skipping new task fetch.", tpe.getQueue().size());
                 return;
             }
@@ -206,22 +242,39 @@ public class ExecutorServiceImpl implements ExecutorService {
         }
 
         for (DownloadTask task : pendingTasks) {
-            task.setStatus(TaskStatus.DOWNLOADING);
+            task.setStatus(TaskStatus.QUEUED);
             downloadTaskRepository.save(task);
 
-            // Update API status to DOWNLOADING
-            apiClientService.updateItemStatus(task.getVideoId(), task.getId(), TaskStatus.DOWNLOADING);
-
             downloadExecutor.submit(() -> {
-                DownloadJob job = task.getJob();
-                logger.info("Starting download for video '{}' (Task ID: {}, Job ID: {})", task.getTitle(), task.getId(),
-                        job.getId());
+                try {
+                    task.setStatus(TaskStatus.DOWNLOADING);
+                    downloadTaskRepository.save(task);
 
-                DownloaderConfig activeConfig = configsService.getResolvedConfig(job.getConfigName());
-                DownloadResult result = executeDownload(task, activeConfig);
+                    // Update API status to DOWNLOADING
+                    apiClientService.updateItemStatus(task.getVideoId(), task.getId(), TaskStatus.DOWNLOADING);
 
-                updateTaskFromResult(task, result);
-                updateJobStatus(job.getId());
+                    DownloadJob job = task.getJob();
+                    logger.info("Starting download for video '{}' (Task ID: {}, Job ID: {})", task.getTitle(), task.getId(),
+                            job.getId());
+
+                    DownloaderConfig activeConfig = configsService.getResolvedConfig(job.getConfigName());
+                    DownloadResult result = executeDownload(task, activeConfig);
+
+                    updateTaskFromResult(task, result);
+                    updateJobStatus(job.getId());
+                } catch (Exception e) {
+                    logger.error("Unexpected error executing download for task {}: {}", task.getId(), e.getMessage(), e);
+                    try {
+                        task.setStatus(TaskStatus.FAILED);
+                        downloadTaskRepository.save(task);
+                        apiClientService.updateItemStatus(task.getVideoId(), task.getId(), TaskStatus.FAILED);
+                        if (task.getJob() != null) {
+                            updateJobStatus(task.getJob().getId());
+                        }
+                    } catch (Exception ex) {
+                        logger.error("Failed to update status to FAILED and notify Hub for task {}", task.getId(), ex);
+                    }
+                }
             });
         }
     }
@@ -270,15 +323,17 @@ public class ExecutorServiceImpl implements ExecutorService {
      */
     @Transactional
     protected void updateTaskFromResult(DownloadTask task, DownloadResult result) {
-        if (result.isSuccess()) {
-            task.setStatus(TaskStatus.DOWNLOADED);
-            task.setFilePath(result.getFilePath());
-            task.setFileSize(result.getFileSize());
-        } else {
-            task.setStatus(TaskStatus.FAILED);
-            task.setErrorMessage(result.getErrorMessage());
-        }
+        task.updateStatusBasedOnSubTasks();
         downloadTaskRepository.save(task);
+        if (task.getStatus() == TaskStatus.FAILED) {
+            apiClientService.updateItemStatus(task.getVideoId(), task.getId(), TaskStatus.FAILED);
+        } else if (task.getStatus() == TaskStatus.DOWNLOADED) {
+            DownloadSubTask videoTask = task.getSubTask(SubTaskType.VIDEO);
+            apiClientService.updateItem(task.getVideoId(), task.getId(),
+                    Optional.ofNullable(videoTask).map(DownloadSubTask::getFileSize).orElse(0L),
+                    Optional.ofNullable(videoTask).map(DownloadSubTask::getFilePath).orElse(""),
+                    TaskStatus.DOWNLOADED);
+        }
         logger.info("Finished processing task {} for video '{}' with status: {}", task.getId(), task.getTitle(),
                 task.getStatus());
     }
@@ -334,10 +389,64 @@ public class ExecutorServiceImpl implements ExecutorService {
 
         logger.info("Output folder: {}", videoDirectory.toString());
 
-        // Command to execute.
-        // The application creates a directory for the video and then runs yt-dlp
-        // from within that directory. The `-o` option specifies the filename pattern
-        // for the output file inside this directory.
+        Path cookiePath = Paths.get(defaultProperties.getNetscapeCookieFolder(), config.getName() + "-cookie.txt");
+
+        DownloadSubTask audioSubTask = task.getSubTask(SubTaskType.AUDIO);
+        if (audioSubTask != null) {
+            audioSubTask.setStatus(TaskStatus.DOWNLOADING);
+            task.updateStatusBasedOnSubTasks();
+            downloadTaskRepository.save(task);
+
+            logger.info("Starting Audio extraction for video '{}'", task.getVideoId());
+            boolean audioSuccess = executeYtDlpPhase(task, audioSubTask, config, videoDirectory, videoUrl, true, cookiePath, result);
+
+            if (!audioSuccess) {
+                audioSubTask.setStatus(TaskStatus.FAILED);
+                task.updateStatusBasedOnSubTasks();
+                downloadTaskRepository.save(task);
+                return result;
+            }
+            audioSubTask.setStatus(TaskStatus.DOWNLOADED);
+            task.updateStatusBasedOnSubTasks();
+            downloadTaskRepository.save(task);
+        }
+
+        DownloadSubTask videoSubTask = task.getSubTask(SubTaskType.VIDEO);
+        if (videoSubTask != null) {
+            videoSubTask.setStatus(TaskStatus.DOWNLOADING);
+            task.updateStatusBasedOnSubTasks();
+            downloadTaskRepository.save(task);
+
+            logger.info("Starting Video download for video '{}'", task.getVideoId());
+            boolean videoSuccess = executeYtDlpPhase(task, videoSubTask, config, videoDirectory, videoUrl, false, cookiePath, result);
+
+            if (!videoSuccess) {
+                videoSubTask.setStatus(TaskStatus.FAILED);
+                task.updateStatusBasedOnSubTasks();
+                downloadTaskRepository.save(task);
+                return result;
+            }
+            videoSubTask.setStatus(TaskStatus.DOWNLOADED);
+            task.updateStatusBasedOnSubTasks();
+            downloadTaskRepository.save(task);
+
+            if (StringUtils.hasText(videoSubTask.getFilePath())) {
+                String downloadedFile = Paths.get(videoSubTask.getFilePath()).getFileName().toString();
+                String baseFilename = getBaseFilename(downloadedFile);
+                downloadThumbnail(task, videoDirectory, baseFilename, result);
+                saveDescription(task, videoDirectory, baseFilename, result);
+            } else {
+                String fallbackBaseFilename = task.getTitle().replaceAll("[\\\\/:*?\"<>|]", "_");
+                downloadThumbnail(task, videoDirectory, fallbackBaseFilename, result);
+                saveDescription(task, videoDirectory, fallbackBaseFilename, result);
+            }
+        }
+
+        result.setSuccess(true);
+        return result;
+    }
+
+    private List<String> buildCommandForPhase(DownloaderConfig config, String videoUrl, boolean isAudioPhase, Path cookiePath, AtomicReference<Path> tempCookiePathRef, DownloadTask task, DownloadResult result) {
         List<String> command = new ArrayList<>();
         command.add("yt-dlp");
         command.add("--js-runtimes");
@@ -345,75 +454,100 @@ public class ExecutorServiceImpl implements ExecutorService {
 
         YtDlpConfig ytDlpConfig = config.getYtDlpConfig();
 
-        // Add cookie file if it exists
-        Path cookiePath = Paths.get(defaultProperties.getNetscapeCookieFolder(), config.getName() + "-cookie.txt");
         if (Boolean.TRUE.equals(ytDlpConfig.getUseCookie())) {
             if (Files.exists(cookiePath)) {
-                command.add("--cookies");
-                command.add(cookiePath.toString());
+                try {
+                    Path tempCookiePath = Files.createTempFile("yt-dlp-cookie-", ".txt");
+                    Files.copy(cookiePath, tempCookiePath, StandardCopyOption.REPLACE_EXISTING);
+                    tempCookiePathRef.set(tempCookiePath);
+                    command.add("--cookies");
+                    command.add(tempCookiePath.toString());
+                } catch (IOException e) {
+                    logger.error("Failed to create temporary cookie file for video {}: {}", task.getVideoId(), e.getMessage(), e);
+                    result.setErrorMessage("Failed to create temporary cookie file: " + e.getMessage());
+                    return null;
+                }
             } else {
                 logger.warn("Cookie usage enabled for config '{}', but cookie file not found at: {}", config.getName(), cookiePath);
             }
         }
 
-        if (StringUtils.hasText(ytDlpConfig.getFormatFiltering())) {
+        if (isAudioPhase) {
             command.add("-f");
-            command.add(ytDlpConfig.getFormatFiltering());
-        }
-
-        if (StringUtils.hasText(ytDlpConfig.getFormatSorting())) {
-            command.add("--format-sort");
-            command.add(ytDlpConfig.getFormatSorting());
-        }
-
-        // Pre-check for subtitles if writeSubs is enabled
-        boolean shouldWriteSubs = Boolean.TRUE.equals(ytDlpConfig.getWriteSubs()) && videoHasSubtitles(videoUrl);
-        if (shouldWriteSubs) {
-            command.add("--write-subs");
-        }
-
-        if (StringUtils.hasText(ytDlpConfig.getSubLang())) {
-            command.add("--sub-lang");
-            command.add(ytDlpConfig.getSubLang());
-        }
-
-        if (Boolean.TRUE.equals(ytDlpConfig.getWriteAutoSubs())) {
-            command.add("--write-auto-subs");
-        }
-
-        if (StringUtils.hasText(ytDlpConfig.getSubFormat())) {
-            command.add("--sub-format");
-            command.add(ytDlpConfig.getSubFormat());
-        }
-
-        if (Boolean.TRUE.equals(ytDlpConfig.getExtractAudio())) {
+            command.add("ba");
             command.add("--extract-audio");
 
             if (StringUtils.hasText(ytDlpConfig.getAudioFormat())) {
                 command.add("--audio-format");
                 command.add(ytDlpConfig.getAudioFormat());
+            } else {
+                command.add("--audio-format");
+                command.add("m4a");
             }
 
             if (ytDlpConfig.getAudioQuality() != null) {
                 command.add("--audio-quality");
                 command.add(String.valueOf(ytDlpConfig.getAudioQuality()));
             }
+        } else {
+            if (StringUtils.hasText(ytDlpConfig.getFormatFiltering())) {
+                command.add("-f");
+                command.add(ytDlpConfig.getFormatFiltering());
+            }
+
+            if (StringUtils.hasText(ytDlpConfig.getFormatSorting())) {
+                command.add("--format-sort");
+                command.add(ytDlpConfig.getFormatSorting());
+            }
+
+            if (StringUtils.hasText(ytDlpConfig.getRemuxVideo())) {
+                command.add("--remux-video");
+                command.add(ytDlpConfig.getRemuxVideo());
+            }
+
+            // Pre-check for subtitles if writeSubs is enabled
+            boolean shouldWriteSubs = Boolean.TRUE.equals(ytDlpConfig.getWriteSubs()) && videoHasSubtitles(videoUrl);
+            if (shouldWriteSubs) {
+                command.add("--write-subs");
+            }
+
+            if (StringUtils.hasText(ytDlpConfig.getSubLang())) {
+                command.add("--sub-lang");
+                command.add(ytDlpConfig.getSubLang());
+            }
+
+            if (Boolean.TRUE.equals(ytDlpConfig.getWriteAutoSubs())) {
+                command.add("--write-auto-subs");
+            }
+
+            if (StringUtils.hasText(ytDlpConfig.getSubFormat())) {
+                command.add("--sub-format");
+                command.add(ytDlpConfig.getSubFormat());
+            }
+
+            if (Boolean.TRUE.equals(ytDlpConfig.getKeepVideo())) {
+                command.add("-k");
+            }
         }
 
-        if (StringUtils.hasText(ytDlpConfig.getRemuxVideo()) && !Boolean.TRUE.equals(ytDlpConfig.getExtractAudio())) {
-            command.add("--remux-video");
-            command.add(ytDlpConfig.getRemuxVideo());
-        }
-
-        if (Boolean.TRUE.equals(ytDlpConfig.getKeepVideo())) {
-            command.add("-k");
-        }
-
-        // The filename will be saved in the working directory defined below.
         if (StringUtils.hasText(ytDlpConfig.getOutputTemplate())) {
-            command.add("-o");
-            command.add(ytDlpConfig.getOutputTemplate());
+            if (isAudioPhase) {
+                String template = ytDlpConfig.getOutputTemplate();
+                // If the template contains video-specific attributes, force a clean default template for audio
+                if (template.contains("%(height)") || template.contains("%(fps)") || template.contains("%(resolution)")) {
+                    command.add("-o");
+                    command.add("%(title)s.%(ext)s");
+                } else {
+                    command.add("-o");
+                    command.add(template);
+                }
+            } else {
+                // Apply the configured template normally for the video phase
+                command.add("-o");
+                command.add(ytDlpConfig.getOutputTemplate());
+            }
         } // If outputTemplate is empty, do not add -o, letting yt-dlp use its own default
+
         if (Boolean.TRUE.equals(ytDlpConfig.getNoProgress())) {
             command.add("--no-progress");
         }
@@ -435,13 +569,50 @@ public class ExecutorServiceImpl implements ExecutorService {
             }
         }
 
-        command.add("--write-info-json"); // Write video metadata to a .json file
+        // Add sleep parameters
+        if (ytDlpConfig.getSleepInterval() != null && ytDlpConfig.getSleepInterval() > 0) {
+            command.add("--sleep-interval");
+            command.add(String.valueOf(ytDlpConfig.getSleepInterval()));
+        }
+        if (ytDlpConfig.getMaxSleepInterval() != null && ytDlpConfig.getMaxSleepInterval() > 0) {
+            command.add("--max-sleep-interval");
+            command.add(String.valueOf(ytDlpConfig.getMaxSleepInterval()));
+        }
+        if (ytDlpConfig.getSleepSubtitles() != null && ytDlpConfig.getSleepSubtitles() > 0) {
+            command.add("--sleep-subtitles");
+            command.add(String.valueOf(ytDlpConfig.getSleepSubtitles()));
+        }
+
+        if (!isAudioPhase) {
+            command.add("--write-info-json");
+        }
+
         command.add(videoUrl);
 
-        logger.debug("Executing command: {}", String.join(" ", command));
+        logger.info("Executing command: {}", String.join(" ", command));
+        return command;
+    }
+
+    private boolean executeYtDlpPhase(DownloadTask task, DownloadSubTask subTask, DownloaderConfig config, Path videoDirectory, String videoUrl, boolean isAudioPhase, Path cookiePath, DownloadResult result) {
+        AtomicReference<Path> tempCookiePathRef = new AtomicReference<>();
+        List<String> command = buildCommandForPhase(config, videoUrl, isAudioPhase, cookiePath, tempCookiePathRef, task, result);
+
+        if (command == null) {
+            subTask.setErrorMessage(truncateErrorMessage(result.getErrorMessage()));
+            return false;
+        }
+
+        // Snapshot existing files in the output directory
+        Set<Path> existingFiles = new HashSet<>();
+        if (Files.exists(videoDirectory)) {
+            try (var stream = Files.list(videoDirectory)) {
+                stream.forEach(existingFiles::add);
+            } catch (IOException e) {
+                logger.warn("Failed to list existing files in directory: {}", videoDirectory);
+            }
+        }
 
         AtomicReference<String> finalFilename = new AtomicReference<>();
-
         ProgressTracker progressTracker = new ProgressTracker();
 
         try {
@@ -449,12 +620,12 @@ public class ExecutorServiceImpl implements ExecutorService {
             Process process = startProcess(command, videoDirectory);
             StringBuilder processOutput = new StringBuilder();
             try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                if (Boolean.TRUE.equals(ytDlpConfig.getNoProgress())) {
+                if (Boolean.TRUE.equals(config.getYtDlpConfig().getNoProgress())) {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         processOutput.append(line).append("\n");
                         logger.debug("[yt-dlp] {}", line);
-                        parseYtDlpOutput(line, task, finalFilename, progressTracker);
+                        parseYtDlpOutput(line, task, subTask, finalFilename, progressTracker);
                     }
                 } else {
                     StringBuilder lineBuilder = new StringBuilder();
@@ -471,7 +642,7 @@ public class ExecutorServiceImpl implements ExecutorService {
                                     String line = lineBuilder.toString();
                                     processOutput.append(line).append(c);
                                     logger.debug("[yt-dlp] {}", line);
-                                    parseYtDlpOutput(line, task, finalFilename, progressTracker);
+                                    parseYtDlpOutput(line, task, subTask, finalFilename, progressTracker);
                                     lineBuilder.setLength(0);
                                 }
                                 lineStart = i + 1; // Next line starts after this character
@@ -488,60 +659,106 @@ public class ExecutorServiceImpl implements ExecutorService {
 
             int exitCode = process.waitFor();
             long duration = System.currentTimeMillis() - startTime;
-            logger.info("yt-dlp process for {} exited with code {}. Duration: {} ms", task.getVideoId(), exitCode, duration);
+            logger.info("yt-dlp phase '{}' for {} exited with code {}. Duration: {} ms",
+                    isAudioPhase ? "AUDIO" : "VIDEO", task.getVideoId(), exitCode, duration);
 
             String downloadedFile = finalFilename.get();
-            if (exitCode == 0 || (exitCode == 1 && downloadedFile != null)) {
-                result.setSuccess(true);
-                if (StringUtils.hasText(downloadedFile)) {
-                    Path path = videoDirectory.resolve(downloadedFile);
-                    if (Files.exists(path)) {
-                        result.setFilePath(path.toString());
-                        result.setFileSize(Files.size(path));
-                        String baseFilename = getBaseFilename(downloadedFile);
-                        downloadThumbnail(task, videoDirectory, baseFilename, result);
-                        saveDescription(task, videoDirectory, baseFilename, result);
-                        // Call the API to update the item record
-                        apiClientService.updateItem(task.getVideoId(), task.getId(), result.getFileSize(),
-                                result.getFilePath(), TaskStatus.DOWNLOADED);
-                        logger.info("Successfully downloaded video: {}", task.getVideoId());
-                    } else {
-                        String warningMsg = "yt-dlp reported success, but file not found at: " + path;
-                        result.addWarning(warningMsg);
-                        logger.warn(warningMsg);
-                        // Save metadata with a fallback name
-                        String fallbackBaseFilename = task.getTitle().replaceAll("[\\\\/:*?\"<>|]", "_");
-                        downloadThumbnail(task, videoDirectory, fallbackBaseFilename, result);
-                        saveDescription(task, videoDirectory, fallbackBaseFilename, result);
-                    }
+            boolean fileFound = false;
+
+            // 1. Primary Strategy: Try the filename parsed from yt-dlp output logs
+            if (StringUtils.hasText(downloadedFile)) {
+                Path path = videoDirectory.resolve(downloadedFile);
+                if (Files.exists(path)) {
+                    subTask.setFilePath(path.toString());
+                    subTask.setFileSize(Files.size(path));
+                    fileFound = true;
+                    logger.info("Strategy 1: Identified final target file via yt-dlp logs: {}", downloadedFile);
                 } else {
-                    String warningMsg = "Could not determine final video filename from yt-dlp output. File path and size are unknown.";
+                    logger.warn("Strategy 1: yt-dlp logs indicated final file '{}', but it wasn't found on disk. Falling back to directory scan.", downloadedFile);
+                }
+            }
+
+            // 2. Fallback Strategy: Directory Scan (only if primary strategy fails)
+            if (!fileFound && (exitCode == 0 || exitCode == 1)) {
+                Path targetPath = null;
+                long maxSize = -1;
+
+                if (Files.exists(videoDirectory)) {
+                    try (var stream = Files.list(videoDirectory)) {
+                        List<Path> newFiles = stream
+                                .filter(Files::isRegularFile)
+                                .filter(p -> !existingFiles.contains(p))
+                                .collect(Collectors.toList());
+
+                        List<String> targetExts = isAudioPhase
+                                ? Arrays.asList(".m4a", ".mp3", ".opus", ".wav", ".flac", ".aac")
+                                : Arrays.asList(".mp4", ".mkv", ".webm", ".avi", ".flv", ".mov");
+
+                        for (Path file : newFiles) {
+                            String lowerName = file.getFileName().toString().toLowerCase();
+                            boolean isMedia = targetExts.stream().anyMatch(lowerName::endsWith) || lowerName.endsWith(".webm");
+
+                            if (isMedia) {
+                                long size = Files.size(file);
+                                if (size > maxSize) {
+                                    maxSize = size;
+                                    targetPath = file;
+                                }
+                            }
+                        }
+                    } catch (IOException e) {
+                        logger.error("Failed to scan directory for downloaded files: {}", videoDirectory, e);
+                    }
+                }
+
+                if (targetPath != null) {
+                    downloadedFile = targetPath.getFileName().toString();
+                    subTask.setFilePath(targetPath.toString());
+                    subTask.setFileSize(Files.size(targetPath));
+                    fileFound = true;
+                    logger.info("Fallback Strategy: Found target file via directory scan: {}", downloadedFile);
+                }
+            }
+
+            if (exitCode == 0 || (exitCode == 1 && fileFound)) {
+                if (!fileFound) {
+                    String warningMsg = "Could not determine final video filename from yt-dlp output or fallback directory scan.";
+                    subTask.setErrorMessage(truncateErrorMessage(warningMsg));
                     result.addWarning(warningMsg);
                     logger.warn(warningMsg);
-                    String fallbackBaseFilename = task.getTitle().replaceAll("[\\\\/:*?\"<>|]", "_");
-                    downloadThumbnail(task, videoDirectory, fallbackBaseFilename, result);
-                    saveDescription(task, videoDirectory, fallbackBaseFilename, result);
                 }
+                return true;
             } else {
-                result.setSuccess(false);
                 String errorMessage = extractYtDlpError(processOutput.toString(), exitCode);
+                subTask.setErrorMessage(errorMessage);
                 result.setErrorMessage(errorMessage);
-                logger.error("Failed to download video {}. yt-dlp exit code: {}. Output:\n{}",
-                        task.getVideoId(), exitCode, processOutput.toString());
-                // Update API status to FAILED
-                apiClientService.updateItemStatus(task.getVideoId(), task.getId(), TaskStatus.FAILED);
+                logger.error("Failed to download video {} (Phase: {}). yt-dlp exit code: {}. Output:\n{}",
+                        task.getVideoId(), isAudioPhase ? "AUDIO" : "VIDEO", exitCode, processOutput);
+                return false;
             }
         } catch (IOException e) {
-            result.setSuccess(false);
-            result.setErrorMessage("I/O error during download: " + e.getMessage());
+            String errorMsg = "I/O error during download: " + e.getMessage();
+            subTask.setErrorMessage(truncateErrorMessage(errorMsg));
+            result.setErrorMessage(errorMsg);
             logger.error("I/O error while trying to download video {}: {}", task.getVideoId(), e.getMessage(), e);
+            return false;
         } catch (InterruptedException e) {
-            result.setSuccess(false);
-            result.setErrorMessage("Download process was interrupted.");
+            String errorMsg = "Download process was interrupted.";
+            subTask.setErrorMessage(truncateErrorMessage(errorMsg));
+            result.setErrorMessage(errorMsg);
             logger.error("Download process for video {} was interrupted.", task.getVideoId(), e);
-            Thread.currentThread().interrupt(); // Preserve the interrupted status
+            Thread.currentThread().interrupt();
+            return false;
+        } finally {
+            Path tempCookiePath = tempCookiePathRef.get();
+            if (tempCookiePath != null) {
+                try {
+                    Files.deleteIfExists(tempCookiePath);
+                } catch (IOException e) {
+                    logger.warn("Failed to delete temporary cookie file: {}", tempCookiePath, e);
+                }
+            }
         }
-        return result;
     }
 
     /**
@@ -563,6 +780,21 @@ public class ExecutorServiceImpl implements ExecutorService {
     }
 
     /**
+     * Truncates an error message to fit within the database column length
+     * limits (255 characters).
+     *
+     * @param message The original error message.
+     * @return The truncated message, or the original if it's within limits.
+     */
+    private String truncateErrorMessage(String message) {
+        if (message == null) {
+            return null;
+        }
+        // Use 200 to be absolutely safe against multi-byte character expansions in some database setups
+        return message.length() > 200 ? message.substring(0, 197) + "..." : message;
+    }
+
+    /**
      * Extracts error messages from the yt-dlp output.
      *
      * @param fullOutput The full output from the yt-dlp process.
@@ -575,14 +807,17 @@ public class ExecutorServiceImpl implements ExecutorService {
                 .filter(line -> line.startsWith("ERROR:"))
                 .collect(Collectors.toList());
 
+        String errorMsg;
         if (!errorLines.isEmpty()) {
             // Return only the specific error lines from yt-dlp
-            return String.join("\n", errorLines);
+            errorMsg = String.join("\n", errorLines);
+        } else {
+            // Fallback message if no specific "ERROR:" line is found
+            errorMsg = String.format("yt-dlp process failed with exit code %d. Please check logs for full output.",
+                    exitCode);
         }
 
-        // Fallback message if no specific "ERROR:" line is found
-        return String.format("yt-dlp process failed with exit code %d. Please check logs for full output.",
-                exitCode);
+        return truncateErrorMessage(errorMsg);
     }
 
     /**
@@ -633,18 +868,23 @@ public class ExecutorServiceImpl implements ExecutorService {
      * @param finalFilename A reference to store the final filename if found.
      * @param progressTracker The progress tracker to manage updates.
      */
-    private void parseYtDlpOutput(String line, DownloadTask task, AtomicReference<String> finalFilename,
-            ProgressTracker progressTracker) {
+    private void parseYtDlpOutput(String line, DownloadTask task, DownloadSubTask subTask, AtomicReference<String> finalFilename,
+            ProgressTracker progressTracker
+    ) {
         var progressMatcher = PROGRESS_PATTERN.matcher(line);
 
-        // Determine if the current download is for a video file based on the filename.
-        boolean isVideoFile = false;
+        boolean isTargetFile;
         String filename = finalFilename.get();
         if (filename != null && !filename.isEmpty()) {
             Path path = Paths.get(filename);
             String fileNameStr = path.getFileName().toString();
-            // Add other video extensions as needed
-            isVideoFile = fileNameStr.endsWith(".mp4") || fileNameStr.endsWith(".webm") || fileNameStr.endsWith(".mkv");
+            if (subTask.getType() == SubTaskType.AUDIO) {
+                isTargetFile = fileNameStr.endsWith(".m4a") || fileNameStr.endsWith(".webm") || fileNameStr.endsWith(".mp3") || fileNameStr.endsWith(".opus");
+            } else {
+                isTargetFile = fileNameStr.endsWith(".mp4") || fileNameStr.endsWith(".webm") || fileNameStr.endsWith(".mkv");
+            }
+        } else {
+            isTargetFile = true;
         }
 
         // logger.debug("yt-dlp output: {}", line);
@@ -652,12 +892,12 @@ public class ExecutorServiceImpl implements ExecutorService {
             try {
                 double progress = Double.parseDouble(progressMatcher.group(1));
 
-                // Throttle database updates to avoid overhead.
-                if (isVideoFile && progressTracker.shouldUpdate(progress)) {
-                    task.setProgress(progress);
+                if (isTargetFile && progressTracker.shouldUpdate(progress)) {
+                    subTask.setProgress(progress);
+                    task.updateStatusBasedOnSubTasks();
                     downloadTaskRepository.save(task);
                     progressTracker.update(progress);
-                    logger.trace("Updated progress for task {} to {}%", task.getId(), progress);
+                    logger.trace("Updated progress for subtask {} to {}%", subTask.getId(), progress);
                 }
             } catch (NumberFormatException e) {
                 logger.warn("Could not parse progress from line: {}", line);
@@ -766,7 +1006,7 @@ public class ExecutorServiceImpl implements ExecutorService {
                 extension = urlString.substring(lastDot);
             }
 
-            Path thumbnailPath = directory.resolve(baseFilename + extension);
+            Path thumbnailPath = directory.resolve(baseFilename + " (BQ)" + extension);
             logger.debug("Downloading thumbnail for {} to {}", task.getVideoId(), thumbnailPath);
 
             try (var in = URI.create(urlString).toURL().openStream()) {
@@ -795,7 +1035,7 @@ public class ExecutorServiceImpl implements ExecutorService {
             return;
         }
 
-        Path descriptionPath = directory.resolve(baseFilename + ".description");
+        Path descriptionPath = directory.resolve(baseFilename + " (Description).txt");
         logger.debug("Saving description for {} to {}", task.getVideoId(), descriptionPath);
 
         try {

@@ -21,70 +21,59 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *===========================================================================*/
-package ch.lin.downloader.backend.api.app.service.command;
+package ch.lin.downloader.backend.api.app.service.model;
 
+import ch.lin.downloader.backend.api.domain.SubTaskType;
+import ch.lin.downloader.backend.api.domain.TaskStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Command object for creating a new configuration.
+ * DTO containing detailed information about a specific download sub-task.
+ * <p>
+ * This provides fine-grained progress and status data for specific phases (like
+ * AUDIO or VIDEO) of a download, intended for UI rendering.
  */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class CreateConfigCommand {
+public class DownloadSubTaskDetails {
 
     /**
-     * The unique name of the configuration.
+     * The unique identifier of the sub-task.
      */
-    private String name;
+    private String id;
 
     /**
-     * Indicates whether the configuration is enabled. Defaults to false if not
-     * provided.
+     * The type of the sub-task (e.g., AUDIO, VIDEO).
      */
-    private Boolean enabled = false;
+    private SubTaskType type;
 
     /**
-     * The duration in seconds for the scheduler interval.
+     * The current status of the sub-task.
      */
-    private Integer duration;
+    private TaskStatus status;
 
     /**
-     * Whether to start downloading automatically when a job is created.
+     * The download progress percentage for this sub-task (0.0 to 100.0).
      */
-    private Boolean startDownloadAutomatically;
+    private Double progress;
 
     /**
-     * Whether to remove completed jobs automatically.
+     * The absolute path to the downloaded file.
      */
-    private Boolean removeCompletedJobAutomatically;
+    private String filePath;
 
     /**
-     * The client ID for accessing the YouTube Hub's REST API.
+     * The size of the downloaded file in bytes.
      */
-    private String clientId;
+    private Long fileSize;
 
     /**
-     * The client secret for accessing the YouTube Hub's REST API.
+     * The error message if the sub-task failed.
      */
-    private String clientSecret;
-
-    /**
-     * The size of the thread pool for concurrent downloads.
-     */
-    private Integer threadPoolSize;
-
-    /**
-     * The maximum size of the executor queue before skipping new task fetches.
-     */
-    private Integer maxQueueSize;
-
-    /**
-     * The yt-dlp specific configuration settings.
-     */
-    private YtDlpConfigCommand ytDlpConfig;
+    private String errorMessage;
 }

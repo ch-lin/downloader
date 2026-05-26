@@ -24,8 +24,10 @@
 package ch.lin.downloader.backend.api.domain;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -34,16 +36,12 @@ class DownloadTaskTest {
     @Test
     void testConstructorSettersAndGetters() {
         DownloadJob job = new DownloadJob("default-config");
-        DownloadTask task = new DownloadTask(job, "vid-1", "Video Title");
-        ReflectionTestUtils.setField(task, "id", "task-1");
+        DownloadTask task = DownloadTask.create(job, "vid-1", "Video Title", false);
+        ReflectionTestUtils.setField(Objects.requireNonNull(task), "id", "task-1");
 
         task.setThumbnailUrl("http://thumb.url");
         task.setDescription("Description");
         task.setStatus(TaskStatus.PENDING);
-        task.setProgress(0.0);
-        task.setFilePath("/path/to/file");
-        task.setFileSize(1024L);
-        task.setErrorMessage("Error");
 
         OffsetDateTime now = OffsetDateTime.now();
         ReflectionTestUtils.setField(task, "createdAt", now);
@@ -56,11 +54,101 @@ class DownloadTaskTest {
         assertThat(task.getThumbnailUrl()).isEqualTo("http://thumb.url");
         assertThat(task.getDescription()).isEqualTo("Description");
         assertThat(task.getStatus()).isEqualTo(TaskStatus.PENDING);
-        assertThat(task.getProgress()).isEqualTo(0.0);
-        assertThat(task.getFilePath()).isEqualTo("/path/to/file");
-        assertThat(task.getFileSize()).isEqualTo(1024L);
-        assertThat(task.getErrorMessage()).isEqualTo("Error");
         assertThat(task.getCreatedAt()).isEqualTo(now);
         assertThat(task.getUpdatedAt()).isEqualTo(now);
+        assertThat(task.getSubTasks()).isNotNull().hasSize(1);
+        assertThat(task.getSubTask(SubTaskType.VIDEO)).isNotNull();
+    }
+
+    @Test
+    void testCreate_WithExtractAudioTrue_ShouldAddAudioSubTask() {
+        DownloadJob job = new DownloadJob("default-config");
+        DownloadTask task = DownloadTask.create(job, "vid-1", "Video Title", true);
+
+        assertThat(task.getSubTasks()).hasSize(2);
+        assertThat(task.getSubTask(SubTaskType.VIDEO)).isNotNull();
+        assertThat(task.getSubTask(SubTaskType.AUDIO)).isNotNull();
+    }
+
+    @Test
+    void testAddAndGetSubTask() {
+        DownloadJob job = new DownloadJob("default-config");
+        DownloadTask task = DownloadTask.create(job, "vid-1", "Video Title", false);
+
+        assertThat(task.getSubTasks()).hasSize(1);
+        assertThat(task.getSubTask(SubTaskType.AUDIO)).isNull();
+
+        DownloadSubTask audioSubTask = new DownloadSubTask(task, SubTaskType.AUDIO);
+        task.addSubTask(audioSubTask);
+
+        assertThat(task.getSubTasks()).hasSize(2).contains(audioSubTask);
+        assertThat(task.getSubTask(SubTaskType.AUDIO)).isEqualTo(audioSubTask);
+    }
+
+    @Test
+    void testAddSubTask_ShouldThrowException_WhenTaskMismatch() {
+        DownloadJob job = new DownloadJob("default-config");
+        DownloadTask task1 = DownloadTask.create(job, "vid-1", "Video Title 1", false);
+        DownloadTask task2 = DownloadTask.create(job, "vid-2", "Video Title 2", false);
+
+        DownloadSubTask subTaskForTask2 = new DownloadSubTask(task2, SubTaskType.VIDEO);
+
+        assertThatThrownBy(() -> task1.addSubTask(subTaskForTask2))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("SubTask must belong to this task.");
+    }
+
+    @Test
+    void testUpdateStatusBasedOnSubTasks() {
+        DownloadJob job = new DownloadJob("default-config");
+        DownloadTask task = DownloadTask.create(job, "vid-1", "Video Title", false);
+
+        // Retrieve the auto-created VIDEO subtask
+        DownloadSubTask videoTask = task.getSubTask(SubTaskType.VIDEO);
+
+        // Scenario 1: Initial state is PENDING
+        task.updateStatusBasedOnSubTasks();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.PENDING);
+
+        DownloadSubTask audioTask = new DownloadSubTask(task, SubTaskType.AUDIO);
+        task.addSubTask(audioTask);
+
+        // Scenario 2: All PENDING -> PENDING
+        task.updateStatusBasedOnSubTasks();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.PENDING);
+
+        // Scenario 3: One DOWNLOADED, one PENDING -> DOWNLOADING
+        audioTask.setStatus(TaskStatus.DOWNLOADED);
+        task.updateStatusBasedOnSubTasks();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.DOWNLOADING);
+
+        // Scenario 4: One DOWNLOADING -> DOWNLOADING
+        videoTask.setStatus(TaskStatus.DOWNLOADING);
+        task.updateStatusBasedOnSubTasks();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.DOWNLOADING);
+
+        // Scenario 5: All DOWNLOADED -> DOWNLOADED
+        videoTask.setStatus(TaskStatus.DOWNLOADED);
+        task.updateStatusBasedOnSubTasks();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.DOWNLOADED);
+
+        // Scenario 6: Any FAILED -> FAILED
+        videoTask.setStatus(TaskStatus.FAILED);
+        task.updateStatusBasedOnSubTasks();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.FAILED);
+
+        audioTask.setStatus(TaskStatus.DOWNLOADING); // Even if another is downloading
+        task.updateStatusBasedOnSubTasks();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.FAILED);
+    }
+
+    @Test
+    void testUpdateStatusBasedOnSubTasks_WhenSubTasksIsEmpty() {
+        DownloadJob job = new DownloadJob("default-config");
+        DownloadTask task = DownloadTask.create(job, "vid-1", "Video Title", false);
+        task.getSubTasks().clear();
+
+        task.updateStatusBasedOnSubTasks();
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.PENDING);
     }
 }

@@ -23,14 +23,14 @@
  *===========================================================================*/
 package ch.lin.downloader.backend.api.app.service.model;
 
+import java.time.OffsetDateTime;
+import java.util.List;
+
+import ch.lin.downloader.backend.api.domain.TaskStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.time.OffsetDateTime;
-
-import ch.lin.downloader.backend.api.domain.TaskStatus;
 
 /**
  * DTO containing detailed information about a specific download task.
@@ -78,26 +78,6 @@ public class DownloadTaskDetails {
     private TaskStatus status;
 
     /**
-     * The download progress percentage (0.0 to 100.0).
-     */
-    private Double progress;
-
-    /**
-     * The absolute path to the downloaded file.
-     */
-    private String filePath;
-
-    /**
-     * The size of the downloaded file in bytes.
-     */
-    private Long fileSize;
-
-    /**
-     * The error message if the task failed.
-     */
-    private String errorMessage;
-
-    /**
      * The timestamp when the task was created.
      */
     private OffsetDateTime createdAt;
@@ -106,4 +86,9 @@ public class DownloadTaskDetails {
      * The timestamp when the task was last updated.
      */
     private OffsetDateTime updatedAt;
+
+    /**
+     * The list of subtasks (e.g., AUDIO, VIDEO) for detailed progress.
+     */
+    private List<DownloadSubTaskDetails> subTasks;
 }

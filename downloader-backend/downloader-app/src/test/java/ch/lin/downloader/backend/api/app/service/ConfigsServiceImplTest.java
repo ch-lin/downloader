@@ -481,6 +481,7 @@ class ConfigsServiceImplTest {
         command.setClientId("new-client-id");
         command.setClientSecret("new-client-secret");
         command.setThreadPoolSize(10);
+        command.setMaxQueueSize(100);
 
         YtDlpConfigCommand ytDlpConfigCommand = new YtDlpConfigCommand();
         ytDlpConfigCommand.setFormatFiltering("new-filter");
@@ -500,6 +501,9 @@ class ConfigsServiceImplTest {
         ytDlpConfigCommand.setNoProgress(false);
         ytDlpConfigCommand.setUseCookie(true);
         ytDlpConfigCommand.setCookie("new-cookie");
+        ytDlpConfigCommand.setSleepInterval(5);
+        ytDlpConfigCommand.setMaxSleepInterval(15);
+        ytDlpConfigCommand.setSleepSubtitles(2);
 
         command.setYtDlpConfig(ytDlpConfigCommand);
 
@@ -521,6 +525,7 @@ class ConfigsServiceImplTest {
         assertThat(result.getClientId()).isEqualTo("new-client-id");
         assertThat(result.getClientSecret()).isEqualTo("new-client-secret");
         assertThat(result.getThreadPoolSize()).isEqualTo(10);
+        assertThat(result.getMaxQueueSize()).isEqualTo(100);
 
         YtDlpConfig resultYtDlp = result.getYtDlpConfig();
         assertThat(resultYtDlp.getFormatFiltering()).isEqualTo("new-filter");
@@ -539,6 +544,9 @@ class ConfigsServiceImplTest {
         assertThat(resultYtDlp.getAudioQuality()).isEqualTo(9);
         assertThat(resultYtDlp.getNoProgress()).isFalse();
         assertThat(resultYtDlp.getUseCookie()).isTrue();
+        assertThat(resultYtDlp.getSleepInterval()).isEqualTo(5);
+        assertThat(resultYtDlp.getMaxSleepInterval()).isEqualTo(15);
+        assertThat(resultYtDlp.getSleepSubtitles()).isEqualTo(2);
     }
 
     @Test
@@ -679,6 +687,7 @@ class ConfigsServiceImplTest {
         assertThat(result.getClientId()).isEqualTo(defaultConfig.getClientId());
         assertThat(result.getClientSecret()).isEqualTo(defaultConfig.getClientSecret());
         assertThat(result.getThreadPoolSize()).isEqualTo(defaultConfig.getThreadPoolSize());
+        assertThat(result.getMaxQueueSize()).isEqualTo(defaultConfig.getMaxQueueSize());
 
         YtDlpConfig resultYtDlp = result.getYtDlpConfig();
         YtDlpConfig defaultYtDlp = defaultConfig.getYtDlpConfig();
@@ -699,6 +708,9 @@ class ConfigsServiceImplTest {
         assertThat(resultYtDlp.getAudioQuality()).isEqualTo(defaultYtDlp.getAudioQuality());
         assertThat(resultYtDlp.getNoProgress()).isEqualTo(defaultYtDlp.getNoProgress());
         assertThat(resultYtDlp.getUseCookie()).isEqualTo(defaultYtDlp.getUseCookie());
+        assertThat(resultYtDlp.getSleepInterval()).isEqualTo(defaultYtDlp.getSleepInterval());
+        assertThat(resultYtDlp.getMaxSleepInterval()).isEqualTo(defaultYtDlp.getMaxSleepInterval());
+        assertThat(resultYtDlp.getSleepSubtitles()).isEqualTo(defaultYtDlp.getSleepSubtitles());
     }
 
     @Test
@@ -726,6 +738,7 @@ class ConfigsServiceImplTest {
         fullConfig.setClientId("existing-client-id");
         fullConfig.setClientSecret("existing-client-secret");
         fullConfig.setThreadPoolSize(5);
+        fullConfig.setMaxQueueSize(100);
 
         YtDlpConfig ytDlpConfig = new YtDlpConfig(configName);
         ytDlpConfig.setFormatFiltering("existing-filter");
@@ -744,6 +757,9 @@ class ConfigsServiceImplTest {
         ytDlpConfig.setAudioQuality(5);
         ytDlpConfig.setNoProgress(false);
         ytDlpConfig.setUseCookie(true);
+        ytDlpConfig.setSleepInterval(5);
+        ytDlpConfig.setMaxSleepInterval(15);
+        ytDlpConfig.setSleepSubtitles(2);
 
         fullConfig.setYtDlpConfig(ytDlpConfig);
 
@@ -758,6 +774,7 @@ class ConfigsServiceImplTest {
         assertThat(result.getClientId()).isEqualTo("existing-client-id");
         assertThat(result.getClientSecret()).isEqualTo("existing-client-secret");
         assertThat(result.getThreadPoolSize()).isEqualTo(5);
+        assertThat(result.getMaxQueueSize()).isEqualTo(100);
 
         YtDlpConfig resultYtDlp = result.getYtDlpConfig();
         assertThat(resultYtDlp.getFormatFiltering()).isEqualTo("existing-filter");
@@ -776,6 +793,9 @@ class ConfigsServiceImplTest {
         assertThat(resultYtDlp.getAudioQuality()).isEqualTo(5);
         assertThat(resultYtDlp.getNoProgress()).isFalse();
         assertThat(resultYtDlp.getUseCookie()).isTrue();
+        assertThat(resultYtDlp.getSleepInterval()).isEqualTo(5);
+        assertThat(resultYtDlp.getMaxSleepInterval()).isEqualTo(15);
+        assertThat(resultYtDlp.getSleepSubtitles()).isEqualTo(2);
     }
 
     @Test

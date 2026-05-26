@@ -55,6 +55,7 @@ public class DefaultConfigFactory {
         downloaderConfig.setClientId(properties.getClientId());
         downloaderConfig.setClientSecret(properties.getClientSecret());
         downloaderConfig.setThreadPoolSize(properties.getThreadPoolSize());
+        downloaderConfig.setMaxQueueSize(properties.getMaxQueueSize());
 
         DownloaderDefaultProperties.Ytdlp ytdlpProps = properties.getYtdlp();
         // The name must match the parent for the relationship to work correctly
@@ -75,6 +76,9 @@ public class DefaultConfigFactory {
         ytDlpConfig.setAudioQuality(ytdlpProps.getAudioQuality());
         ytDlpConfig.setNoProgress(ytdlpProps.isNoProgress());
         ytDlpConfig.setUseCookie(ytdlpProps.isUseCookie());
+        ytDlpConfig.setSleepInterval(ytdlpProps.getSleepInterval());
+        ytDlpConfig.setMaxSleepInterval(ytdlpProps.getMaxSleepInterval());
+        ytDlpConfig.setSleepSubtitles(ytdlpProps.getSleepSubtitles());
 
         downloaderConfig.setYtDlpConfig(ytDlpConfig);
         return downloaderConfig;

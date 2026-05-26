@@ -23,10 +23,14 @@
  *===========================================================================*/
 package ch.lin.downloader.backend.api.domain;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.hibernate.annotations.ColumnDefault;
 
 import static ch.lin.downloader.backend.api.domain.DownloadTask.TABLE_NAME;
 import ch.lin.platform.domain.model.UuidAuditableEntity;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -37,6 +41,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
@@ -56,7 +61,7 @@ import lombok.experimental.SuperBuilder;
     @Index(name = DownloadTask.VIDEO_ID_INDEX, columnList = DownloadTask.VIDEO_ID_COLUMN)
 })
 @Getter
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, exclude = "subTasks")
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -113,26 +118,6 @@ public class DownloadTask extends UuidAuditableEntity {
     public static final String STATUS_COLUMN = "status";
 
     /**
-     * The name of the progress column in the database.
-     */
-    public static final String PROGRESS_COLUMN = "progress";
-
-    /**
-     * The name of the file path column in the database.
-     */
-    public static final String FILE_PATH_COLUMN = "file_path";
-
-    /**
-     * The name of the file size column in the database.
-     */
-    public static final String FILE_SIZE_COLUMN = "file_size";
-
-    /**
-     * The name of the error message column in the database.
-     */
-    public static final String ERROR_MESSAGE_COLUMN = "error_message";
-
-    /**
      * The parent {@link DownloadJob} this task belongs to. This forms the
      * many-to-one side of the relationship.
      */
@@ -183,35 +168,11 @@ public class DownloadTask extends UuidAuditableEntity {
     private TaskStatus status = TaskStatus.PENDING;
 
     /**
-     * The download progress percentage, from 0.0 to 100.0.
+     * The list of sub-tasks for this download task (e.g., AUDIO, VIDEO).
      */
-    @ColumnDefault("0.0")
-    @Column(name = DownloadTask.PROGRESS_COLUMN)
-    @Setter
+    @OneToMany(mappedBy = "parentTask", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @lombok.Builder.Default
-    private Double progress = 0.0;
-
-    /**
-     * The local file path of the downloaded video.
-     */
-    @Column(name = DownloadTask.FILE_PATH_COLUMN, length = 1024)
-    @Setter
-    private String filePath;
-
-    /**
-     * The size of the downloaded file in bytes.
-     */
-    @Column(name = DownloadTask.FILE_SIZE_COLUMN)
-    @Setter
-    private Long fileSize;
-
-    /**
-     * Any error message if the download failed.
-     */
-    @Lob
-    @Column(name = DownloadTask.ERROR_MESSAGE_COLUMN)
-    @Setter
-    private String errorMessage;
+    private List<DownloadSubTask> subTasks = new ArrayList<>();
 
     /**
      * Creates a new DownloadTask.
@@ -220,10 +181,87 @@ public class DownloadTask extends UuidAuditableEntity {
      * @param videoId The ID of the YouTube video to download.
      * @param title The title of the video.
      */
-    public DownloadTask(DownloadJob job, String videoId, String title) {
+    protected DownloadTask(DownloadJob job, String videoId, String title) {
         this();
         this.job = job;
         this.videoId = videoId;
         this.title = title;
+    }
+
+    /**
+     * Creates a new DownloadTask and enforces the required sub-tasks.
+     */
+    public static DownloadTask create(DownloadJob job, String videoId, String title, boolean extractAudio) {
+        DownloadTask task = new DownloadTask(job, videoId, title);
+
+        task.addSubTask(new DownloadSubTask(task, SubTaskType.VIDEO));
+
+        if (extractAudio) {
+            task.addSubTask(new DownloadSubTask(task, SubTaskType.AUDIO));
+        }
+
+        return task;
+    }
+
+    /**
+     * Adds a sub-task to this download task.
+     *
+     * @param subTask The sub-task to add.
+     */
+    public void addSubTask(DownloadSubTask subTask) {
+        if (subTask.getParentTask() != this) {
+            throw new IllegalArgumentException("SubTask must belong to this task.");
+        }
+        subTasks.add(subTask);
+    }
+
+    /**
+     * Retrieves a sub-task by its type.
+     *
+     * @param type The type of the sub-task.
+     * @return The sub-task if found, null otherwise.
+     */
+    public DownloadSubTask getSubTask(SubTaskType type) {
+        return subTasks.stream()
+                .filter(st -> st.getType() == type)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Dynamically computes and updates the overall status based on the statuses
+     * of the sub-tasks.
+     */
+    public void updateStatusBasedOnSubTasks() {
+        if (subTasks.isEmpty()) {
+            this.status = TaskStatus.PENDING;
+            return;
+        }
+
+        boolean allDownloaded = true;
+        boolean anyStarted = false;
+        boolean anyFailed = false;
+
+        for (DownloadSubTask st : subTasks) {
+            if (st.getStatus() == TaskStatus.FAILED) {
+                anyFailed = true;
+            }
+            if (st.getStatus() != TaskStatus.PENDING) {
+                anyStarted = true;
+            }
+            if (st.getStatus() != TaskStatus.DOWNLOADED) {
+                allDownloaded = false;
+            }
+        }
+
+        if (anyFailed) {
+            this.status = TaskStatus.FAILED;
+        } else if (allDownloaded) {
+            this.status = TaskStatus.DOWNLOADED;
+        } else if (anyStarted) {
+            this.status = TaskStatus.DOWNLOADING;
+        } else {
+            this.status = TaskStatus.PENDING;
+        }
     }
 }

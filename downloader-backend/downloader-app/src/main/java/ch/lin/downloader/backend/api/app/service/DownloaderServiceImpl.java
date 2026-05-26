@@ -37,6 +37,7 @@ import ch.lin.downloader.backend.api.app.repository.DownloadJobRepository;
 import ch.lin.downloader.backend.api.app.repository.DownloadTaskRepository;
 import ch.lin.downloader.backend.api.app.service.command.DownloadItem;
 import ch.lin.downloader.backend.api.app.service.model.DownloadJobDetails;
+import ch.lin.downloader.backend.api.app.service.model.DownloadSubTaskDetails;
 import ch.lin.downloader.backend.api.app.service.model.DownloadTaskDetails;
 import ch.lin.downloader.backend.api.app.service.model.DownloadTaskSummary;
 import ch.lin.downloader.backend.api.domain.DownloadJob;
@@ -116,7 +117,7 @@ public class DownloaderServiceImpl implements DownloaderService {
 
         for (DownloadItem item : items) {
             logger.debug("Creating task for videoId: {}", item.getVideoId());
-            job.addTask(createTaskFromItem(job, item));
+            job.addTask(createTaskFromItem(job, item, activeConfig));
         }
 
         DownloadJob savedJob = downloadJobRepository.save(job);
@@ -143,14 +144,15 @@ public class DownloaderServiceImpl implements DownloaderService {
      *
      * @param job The parent download job.
      * @param item The DTO containing the video details.
+     * @param config The configuration to determine if audio extraction is
+     * needed.
      * @return A new {@link DownloadTask} entity.
      */
-    private DownloadTask createTaskFromItem(DownloadJob job, DownloadItem item) {
-        DownloadTask task = new DownloadTask(job, item.getVideoId(), item.getTitle());
+    private DownloadTask createTaskFromItem(DownloadJob job, DownloadItem item, DownloaderConfig config) {
+        boolean extractAudio = config.getYtDlpConfig() != null && Boolean.TRUE.equals(config.getYtDlpConfig().getExtractAudio());
+        DownloadTask task = DownloadTask.create(job, item.getVideoId(), item.getTitle(), extractAudio);
         task.setThumbnailUrl(item.getThumbnailUrl());
         task.setDescription(item.getDescription());
-        // Other fields like filePath, fileSize, errorMessage will be set later during
-        // execution.
         return task;
     }
 
@@ -187,7 +189,15 @@ public class DownloaderServiceImpl implements DownloaderService {
         jobDetailsDto.setConfigName(job.getConfigName());
 
         List<DownloadTaskSummary> taskSummaries = job.getTasks().stream()
-                .map(task -> new DownloadTaskSummary(task.getId(), task.getStatus(), task.getProgress()))
+                .map(task -> {
+                    double progress = task.getSubTasks().isEmpty() ? 0.0 : task.getSubTasks().stream()
+                            .mapToDouble(st -> {
+                                Double p = st.getProgress();
+                                return p != null ? p : 0.0;
+                            })
+                            .average().orElse(0.0);
+                    return new DownloadTaskSummary(task.getId(), task.getStatus(), progress);
+                })
                 .collect(Collectors.toList());
 
         jobDetailsDto.setTasks(taskSummaries);
@@ -216,10 +226,10 @@ public class DownloaderServiceImpl implements DownloaderService {
         dto.setThumbnailUrl(task.getThumbnailUrl());
         dto.setDescription(task.getDescription());
         dto.setStatus(task.getStatus());
-        dto.setProgress(task.getProgress());
-        dto.setFilePath(task.getFilePath());
-        dto.setFileSize(task.getFileSize());
-        dto.setErrorMessage(task.getErrorMessage());
+        dto.setSubTasks(task.getSubTasks().stream()
+                .map(st -> new DownloadSubTaskDetails(st.getId(), st.getType(), st.getStatus(), st.getProgress(), st.getFilePath(), st.getFileSize(), st.getErrorMessage()))
+                .collect(Collectors.toList()));
+
         dto.setCreatedAt(task.getCreatedAt());
         dto.setUpdatedAt(task.getUpdatedAt());
         return dto;

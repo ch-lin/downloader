@@ -42,6 +42,7 @@ class DefaultConfigFactoryTest {
         properties.setClientId("client-id");
         properties.setClientSecret("client-secret");
         properties.setThreadPoolSize(5);
+        properties.setMaxQueueSize(100);
 
         DownloaderDefaultProperties.Ytdlp ytdlpProps = properties.getYtdlp();
         ytdlpProps.setFormatFiltering("best");
@@ -60,6 +61,9 @@ class DefaultConfigFactoryTest {
         ytdlpProps.setAudioQuality(5);
         ytdlpProps.setNoProgress(true);
         ytdlpProps.setUseCookie(true);
+        ytdlpProps.setSleepInterval(5);
+        ytdlpProps.setMaxSleepInterval(15);
+        ytdlpProps.setSleepSubtitles(2);
 
         DefaultConfigFactory factory = new DefaultConfigFactory();
 
@@ -76,6 +80,7 @@ class DefaultConfigFactoryTest {
         assertThat(config.getClientId()).isEqualTo("client-id");
         assertThat(config.getClientSecret()).isEqualTo("client-secret");
         assertThat(config.getThreadPoolSize()).isEqualTo(5);
+        assertThat(config.getMaxQueueSize()).isEqualTo(100);
 
         YtDlpConfig ytDlpConfig = config.getYtDlpConfig();
         assertThat(ytDlpConfig).isNotNull();
@@ -96,5 +101,8 @@ class DefaultConfigFactoryTest {
         assertThat(ytDlpConfig.getAudioQuality()).isEqualTo(5);
         assertThat(ytDlpConfig.getNoProgress()).isTrue();
         assertThat(ytDlpConfig.getUseCookie()).isTrue();
+        assertThat(ytDlpConfig.getSleepInterval()).isEqualTo(5);
+        assertThat(ytDlpConfig.getMaxSleepInterval()).isEqualTo(15);
+        assertThat(ytDlpConfig.getSleepSubtitles()).isEqualTo(2);
     }
 }

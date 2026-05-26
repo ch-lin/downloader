@@ -39,6 +39,7 @@ class CreateConfigCommandTest {
         command.setClientId("client-id");
         command.setClientSecret("client-secret");
         command.setThreadPoolSize(5);
+        command.setMaxQueueSize(100);
 
         YtDlpConfigCommand ytDlpConfig = new YtDlpConfigCommand();
         command.setYtDlpConfig(ytDlpConfig);
@@ -51,13 +52,14 @@ class CreateConfigCommandTest {
         assertThat(command.getClientId()).isEqualTo("client-id");
         assertThat(command.getClientSecret()).isEqualTo("client-secret");
         assertThat(command.getThreadPoolSize()).isEqualTo(5);
+        assertThat(command.getMaxQueueSize()).isEqualTo(100);
         assertThat(command.getYtDlpConfig()).isEqualTo(ytDlpConfig);
     }
 
     @Test
     void testAllArgsConstructor() {
         YtDlpConfigCommand ytDlpConfig = new YtDlpConfigCommand();
-        CreateConfigCommand command = new CreateConfigCommand("test", true, 60, false, true, "id", "secret", 2, ytDlpConfig);
+        CreateConfigCommand command = new CreateConfigCommand("test", true, 60, false, true, "id", "secret", 2, 100, ytDlpConfig);
 
         assertThat(command.getName()).isEqualTo("test");
         assertThat(command.getYtDlpConfig()).isEqualTo(ytDlpConfig);

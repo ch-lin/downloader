@@ -61,7 +61,7 @@ class DownloadTaskJpaTest {
 
         // 5. Test @UpdateTimestamp: modify field to trigger an update
         DownloadTask fetchedTask = entityManager.find(DownloadTask.class, savedTask.getId());
-        fetchedTask.setProgress(50.0); // Simulate progress update
+        fetchedTask.setStatus(TaskStatus.DOWNLOADING); // Simulate status update
         entityManager.persistAndFlush(fetchedTask);
         entityManager.clear(); // Clear cache again
 

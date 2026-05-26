@@ -45,6 +45,7 @@ public class DownloaderDefaultProperties {
 
     public static final int DEFAULT_DURATION = 60;
     public static final int DEFAULT_THREAD_POOL_SIZE = 3;
+    public static final int DEFAULT_MAX_QUEUE_SIZE = 50;
 
     /**
      * The default directory where downloaded files will be saved.
@@ -88,6 +89,11 @@ public class DownloaderDefaultProperties {
      * The default size of the thread pool for concurrent downloads.
      */
     private int threadPoolSize = DEFAULT_THREAD_POOL_SIZE;
+
+    /**
+     * The default maximum size of the executor queue.
+     */
+    private int maxQueueSize = DEFAULT_MAX_QUEUE_SIZE;
 
     /**
      * Nested configuration for yt-dlp specific options.
@@ -183,5 +189,20 @@ public class DownloaderDefaultProperties {
          * Whether to use the cookie file for authentication.
          */
         private boolean useCookie = false;
+
+        /**
+         * Number of seconds to sleep before each download.
+         */
+        private Integer sleepInterval;
+
+        /**
+         * Upper bound of a range for randomized sleep before each download.
+         */
+        private Integer maxSleepInterval;
+
+        /**
+         * Number of seconds to sleep before each subtitle download.
+         */
+        private Integer sleepSubtitles;
     }
 }
