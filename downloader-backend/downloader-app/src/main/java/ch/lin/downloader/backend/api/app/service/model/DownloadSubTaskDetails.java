@@ -23,9 +23,7 @@
  *===========================================================================*/
 package ch.lin.downloader.backend.api.app.service.model;
 
-import java.time.OffsetDateTime;
-import java.util.List;
-
+import ch.lin.downloader.backend.api.domain.SubTaskType;
 import ch.lin.downloader.backend.api.domain.TaskStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -33,62 +31,49 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * DTO containing detailed information about a specific download task.
+ * DTO containing detailed information about a specific download sub-task.
+ * <p>
+ * This provides fine-grained progress and status data for specific phases (like
+ * AUDIO or VIDEO) of a download, intended for UI rendering.
  */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class DownloadTaskDetails {
+public class DownloadSubTaskDetails {
 
     /**
-     * The unique identifier of the task.
+     * The unique identifier of the sub-task.
      */
     private String id;
 
     /**
-     * The ID of the job this task belongs to.
+     * The type of the sub-task (e.g., AUDIO, VIDEO).
      */
-    private String jobId;
+    private SubTaskType type;
 
     /**
-     * The YouTube video ID.
-     */
-    private String videoId;
-
-    /**
-     * The title of the video.
-     */
-    private String title;
-
-    /**
-     * The URL of the video thumbnail.
-     */
-    private String thumbnailUrl;
-
-    /**
-     * The description of the video.
-     */
-    private String description;
-
-    /**
-     * The current status of the task (e.g., PENDING, DOWNLOADING, DOWNLOADED,
-     * FAILED).
+     * The current status of the sub-task.
      */
     private TaskStatus status;
 
     /**
-     * The timestamp when the task was created.
+     * The download progress percentage for this sub-task (0.0 to 100.0).
      */
-    private OffsetDateTime createdAt;
+    private Double progress;
 
     /**
-     * The timestamp when the task was last updated.
+     * The absolute path to the downloaded file.
      */
-    private OffsetDateTime updatedAt;
+    private String filePath;
 
     /**
-     * The list of subtasks (e.g., AUDIO, VIDEO) for detailed progress.
+     * The size of the downloaded file in bytes.
      */
-    private List<DownloadSubTaskDetails> subTasks;
+    private Long fileSize;
+
+    /**
+     * The error message if the sub-task failed.
+     */
+    private String errorMessage;
 }

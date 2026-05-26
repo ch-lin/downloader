@@ -68,14 +68,13 @@ public interface DownloadTaskRepository extends JpaRepository<DownloadTask, Stri
     /**
      * Finds all {@link DownloadTask} entities with a specific status, eagerly
      * fetching the associated
-     * {@link ch.lin.downloader.backend.api.domain.DownloadJob} for
-     * each task.
+     * {@link ch.lin.downloader.backend.api.domain.DownloadJob} for each task.
      *
      * @param status The status to filter by.
      * @return A {@link List} of tasks with their parent jobs, matching the
      * given status.
      */
-    @Query("SELECT t FROM DownloadTask t JOIN FETCH t.job WHERE t.status = :status")
+    @Query("SELECT DISTINCT t FROM DownloadTask t JOIN FETCH t.job LEFT JOIN FETCH t.subTasks WHERE t.status = :status")
     List<DownloadTask> findAllByStatusWithJob(@Param("status") TaskStatus status);
 
     /**

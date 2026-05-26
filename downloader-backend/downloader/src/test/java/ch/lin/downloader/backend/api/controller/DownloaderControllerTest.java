@@ -38,13 +38,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -83,7 +83,7 @@ class DownloaderControllerTest {
         request.setConfigName("default");
 
         DownloadJob job = new DownloadJob("default");
-        DownloadTask task = new DownloadTask(job, "vid1", "Title 1");
+        DownloadTask task = DownloadTask.create(job, "vid1", "Title 1", false);
         ReflectionTestUtils.setField(task, "id", "task1");
         job.addTask(task);
 

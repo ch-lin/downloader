@@ -23,17 +23,73 @@
  *===========================================================================*/
 package ch.lin.downloader.backend.api.mapper;
 
-import org.mapstruct.Mapper;
+import org.springframework.stereotype.Component;
 
 import ch.lin.downloader.backend.api.app.service.command.CreateConfigCommand;
 import ch.lin.downloader.backend.api.app.service.command.UpdateConfigCommand;
+import ch.lin.downloader.backend.api.app.service.command.YtDlpConfigCommand;
 import ch.lin.downloader.backend.api.dto.CreateConfigRequest;
 import ch.lin.downloader.backend.api.dto.UpdateConfigRequest;
+import ch.lin.downloader.backend.api.dto.YtDlpConfigDto;
 
-@Mapper(componentModel = "spring")
-public interface ConfigMapper {
+@Component
+public class ConfigMapper {
 
-    CreateConfigCommand toCommand(CreateConfigRequest request);
+    public CreateConfigCommand toCommand(CreateConfigRequest request) {
+        if (request == null) {
+            return null;
+        }
+        CreateConfigCommand command = new CreateConfigCommand();
+        command.setName(request.getName());
+        command.setEnabled(request.getEnabled());
+        command.setDuration(request.getDuration());
+        command.setStartDownloadAutomatically(request.getStartDownloadAutomatically());
+        command.setRemoveCompletedJobAutomatically(request.getRemoveCompletedJobAutomatically());
+        command.setClientId(request.getClientId());
+        command.setClientSecret(request.getClientSecret());
+        command.setThreadPoolSize(request.getThreadPoolSize());
+        command.setYtDlpConfig(toCommand(request.getYtDlpConfig()));
+        return command;
+    }
 
-    UpdateConfigCommand toCommand(UpdateConfigRequest request);
+    public UpdateConfigCommand toCommand(UpdateConfigRequest request) {
+        if (request == null) {
+            return null;
+        }
+        UpdateConfigCommand command = new UpdateConfigCommand();
+        command.setEnabled(request.getEnabled());
+        command.setDuration(request.getDuration());
+        command.setStartDownloadAutomatically(request.getStartDownloadAutomatically());
+        command.setRemoveCompletedJobAutomatically(request.getRemoveCompletedJobAutomatically());
+        command.setClientId(request.getClientId());
+        command.setClientSecret(request.getClientSecret());
+        command.setThreadPoolSize(request.getThreadPoolSize());
+        command.setYtDlpConfig(toCommand(request.getYtDlpConfig()));
+        return command;
+    }
+
+    public YtDlpConfigCommand toCommand(YtDlpConfigDto request) {
+        if (request == null) {
+            return null;
+        }
+        YtDlpConfigCommand command = new YtDlpConfigCommand();
+        command.setFormatFiltering(request.getFormatFiltering());
+        command.setFormatSorting(request.getFormatSorting());
+        command.setRemuxVideo(request.getRemuxVideo());
+        command.setWriteDescription(request.getWriteDescription());
+        command.setWriteSubs(request.getWriteSubs());
+        command.setSubLang(request.getSubLang());
+        command.setWriteAutoSubs(request.getWriteAutoSubs());
+        command.setSubFormat(request.getSubFormat());
+        command.setOutputTemplate(request.getOutputTemplate());
+        command.setOverwrite(request.getOverwrite());
+        command.setKeepVideo(request.getKeepVideo());
+        command.setExtractAudio(request.getExtractAudio());
+        command.setAudioFormat(request.getAudioFormat());
+        command.setAudioQuality(request.getAudioQuality());
+        command.setNoProgress(request.getNoProgress());
+        command.setUseCookie(request.getUseCookie());
+        command.setCookie(request.getCookie());
+        return command;
+    }
 }

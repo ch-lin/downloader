@@ -21,74 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *===========================================================================*/
-package ch.lin.downloader.backend.api.app.service.model;
-
-import java.time.OffsetDateTime;
-import java.util.List;
-
-import ch.lin.downloader.backend.api.domain.TaskStatus;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+package ch.lin.downloader.backend.api.domain;
 
 /**
- * DTO containing detailed information about a specific download task.
+ * Represents the type of a specific download sub-task.
+ * <p>
+ * A sub-task can represent an individual phase or component of a video
+ * download, such as extracting audio or downloading the main video stream.
  */
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-public class DownloadTaskDetails {
-
+public enum SubTaskType {
     /**
-     * The unique identifier of the task.
+     * Sub-task for downloading or extracting the audio stream.
      */
-    private String id;
-
+    AUDIO,
     /**
-     * The ID of the job this task belongs to.
+     * Sub-task for downloading the video stream or merging the final video
+     * file.
      */
-    private String jobId;
-
+    VIDEO,
     /**
-     * The YouTube video ID.
+     * Sub-task for downloading the video thumbnail.
      */
-    private String videoId;
-
+    THUMBNAIL,
     /**
-     * The title of the video.
+     * Sub-task for downloading video subtitles.
      */
-    private String title;
-
-    /**
-     * The URL of the video thumbnail.
-     */
-    private String thumbnailUrl;
-
-    /**
-     * The description of the video.
-     */
-    private String description;
-
-    /**
-     * The current status of the task (e.g., PENDING, DOWNLOADING, DOWNLOADED,
-     * FAILED).
-     */
-    private TaskStatus status;
-
-    /**
-     * The timestamp when the task was created.
-     */
-    private OffsetDateTime createdAt;
-
-    /**
-     * The timestamp when the task was last updated.
-     */
-    private OffsetDateTime updatedAt;
-
-    /**
-     * The list of subtasks (e.g., AUDIO, VIDEO) for detailed progress.
-     */
-    private List<DownloadSubTaskDetails> subTasks;
+    SUBTITLE
 }

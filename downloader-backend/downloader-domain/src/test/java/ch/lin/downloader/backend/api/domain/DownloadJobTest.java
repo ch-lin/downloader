@@ -24,6 +24,7 @@
 package ch.lin.downloader.backend.api.domain;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -53,8 +54,8 @@ class DownloadJobTest {
     @Test
     void testAddTask() {
         DownloadJob job = new DownloadJob("default-config");
-        DownloadTask task = new DownloadTask(job, "vid-1", "Video Title");
-        ReflectionTestUtils.setField(task, "id", "task-1");
+        DownloadTask task = DownloadTask.create(job, "vid-1", "Video Title", false);
+        ReflectionTestUtils.setField(Objects.requireNonNull(task), "id", "task-1");
 
         job.addTask(task);
 
@@ -66,7 +67,7 @@ class DownloadJobTest {
     void testAddTask_ShouldThrowException_WhenTaskBelongsToAnotherJob() {
         DownloadJob job1 = new DownloadJob("config-1");
         DownloadJob job2 = new DownloadJob("config-2");
-        DownloadTask taskForJob2 = new DownloadTask(job2, "vid-1", "Video Title");
+        DownloadTask taskForJob2 = DownloadTask.create(job2, "vid-1", "Video Title", false);
 
         assertThatThrownBy(() -> job1.addTask(taskForJob2))
                 .isInstanceOf(IllegalArgumentException.class)
