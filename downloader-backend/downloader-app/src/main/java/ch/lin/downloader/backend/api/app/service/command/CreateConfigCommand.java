@@ -79,6 +79,11 @@ public class CreateConfigCommand {
     private Integer threadPoolSize;
 
     /**
+     * The maximum size of the executor queue before skipping new task fetches.
+     */
+    private Integer maxQueueSize;
+
+    /**
      * The yt-dlp specific configuration settings.
      */
     private YtDlpConfigCommand ytDlpConfig;

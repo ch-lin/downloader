@@ -86,6 +86,11 @@ public class CreateConfigRequest {
     private Integer threadPoolSize = DownloaderDefaultProperties.DEFAULT_THREAD_POOL_SIZE;
 
     /**
+     * The maximum size of the executor queue before skipping new task fetches.
+     */
+    private Integer maxQueueSize = DownloaderDefaultProperties.DEFAULT_MAX_QUEUE_SIZE;
+
+    /**
      * The yt-dlp specific configuration settings.
      */
     @Valid

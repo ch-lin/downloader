@@ -207,9 +207,12 @@ public class ExecutorServiceImpl implements ExecutorService {
         logger.debug("Scheduler running: Checking for pending download tasks.");
         adjustThreadPoolSize();
 
+        DownloaderConfig globalConfig = configsService.getResolvedConfig(null);
+
         // Backpressure: Check if the executor queue is already busy.
         if (downloadExecutor instanceof java.util.concurrent.ThreadPoolExecutor tpe) {
-            if (tpe.getQueue().size() > 50) {
+            int maxQueueSize = Optional.ofNullable(globalConfig.getMaxQueueSize()).orElse(50);
+            if (tpe.getQueue().size() > maxQueueSize) {
                 logger.info("Executor queue is busy ({} tasks waiting). Skipping new task fetch.", tpe.getQueue().size());
                 return;
             }
@@ -551,6 +554,20 @@ public class ExecutorServiceImpl implements ExecutorService {
                     // is needed.
                     break;
             }
+        }
+
+        // Add sleep parameters
+        if (ytDlpConfig.getSleepInterval() != null && ytDlpConfig.getSleepInterval() > 0) {
+            command.add("--sleep-interval");
+            command.add(String.valueOf(ytDlpConfig.getSleepInterval()));
+        }
+        if (ytDlpConfig.getMaxSleepInterval() != null && ytDlpConfig.getMaxSleepInterval() > 0) {
+            command.add("--max-sleep-interval");
+            command.add(String.valueOf(ytDlpConfig.getMaxSleepInterval()));
+        }
+        if (ytDlpConfig.getSleepSubtitles() != null && ytDlpConfig.getSleepSubtitles() > 0) {
+            command.add("--sleep-subtitles");
+            command.add(String.valueOf(ytDlpConfig.getSleepSubtitles()));
         }
 
         if (!isAudioPhase) {

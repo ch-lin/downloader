@@ -61,6 +61,7 @@ class ConfigMapperTest {
         request.setClientId("client");
         request.setClientSecret("secret");
         request.setThreadPoolSize(5);
+        request.setMaxQueueSize(100);
 
         YtDlpConfigDto ytReq = new YtDlpConfigDto();
         ytReq.setFormatFiltering("best");
@@ -77,6 +78,7 @@ class ConfigMapperTest {
         assertThat(command.getClientId()).isEqualTo("client");
         assertThat(command.getClientSecret()).isEqualTo("secret");
         assertThat(command.getThreadPoolSize()).isEqualTo(5);
+        assertThat(command.getMaxQueueSize()).isEqualTo(100);
 
         assertThat(command.getYtDlpConfig()).isNotNull();
         assertThat(command.getYtDlpConfig().getFormatFiltering()).isEqualTo("best");
@@ -97,6 +99,7 @@ class ConfigMapperTest {
         request.setClientId("client2");
         request.setClientSecret("secret2");
         request.setThreadPoolSize(10);
+        request.setMaxQueueSize(200);
 
         UpdateConfigCommand command = configMapper.toCommand(request);
 
@@ -108,6 +111,7 @@ class ConfigMapperTest {
         assertThat(command.getClientId()).isEqualTo("client2");
         assertThat(command.getClientSecret()).isEqualTo("secret2");
         assertThat(command.getThreadPoolSize()).isEqualTo(10);
+        assertThat(command.getMaxQueueSize()).isEqualTo(200);
         assertThat(command.getYtDlpConfig()).isNull();
     }
 
@@ -124,6 +128,9 @@ class ConfigMapperTest {
         request.setRemuxVideo("mp4");
         request.setOverwrite(OverwriteOption.FORCE);
         request.setCookie("my-cookie");
+        request.setSleepInterval(5);
+        request.setMaxSleepInterval(15);
+        request.setSleepSubtitles(2);
 
         YtDlpConfigCommand command = configMapper.toCommand(request);
 
@@ -133,5 +140,8 @@ class ConfigMapperTest {
         assertThat(command.getRemuxVideo()).isEqualTo("mp4");
         assertThat(command.getOverwrite()).isEqualTo(OverwriteOption.FORCE);
         assertThat(command.getCookie()).isEqualTo("my-cookie");
+        assertThat(command.getSleepInterval()).isEqualTo(5);
+        assertThat(command.getMaxSleepInterval()).isEqualTo(15);
+        assertThat(command.getSleepSubtitles()).isEqualTo(2);
     }
 }

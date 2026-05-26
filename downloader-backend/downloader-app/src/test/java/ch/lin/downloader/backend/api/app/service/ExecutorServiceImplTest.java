@@ -609,7 +609,9 @@ class ExecutorServiceImplTest {
 
         // 3. Exception handling
         when(configsService.getResolvedConfig(null)).thenThrow(new RuntimeException("Simulated error"));
-        executorService.processPendingTasks();
+        assertThatThrownBy(() -> executorService.processPendingTasks())
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Simulated error");
     }
 
     @Test
@@ -625,6 +627,33 @@ class ExecutorServiceImplTest {
         BlockingQueue<Runnable> mockQueue = mock(BlockingQueue.class);
         when(mockExecutor.getQueue()).thenReturn(mockQueue);
         when(mockQueue.size()).thenReturn(51);
+
+        // Inject mock executor via reflection
+        Field executorField = ExecutorServiceImpl.class.getDeclaredField("downloadExecutor");
+        executorField.setAccessible(true);
+        executorField.set(executorService, mockExecutor);
+
+        // Execute
+        executorService.processPendingTasks();
+
+        // Verify repository was not queried
+        verify(downloadTaskRepository, never()).findAllByStatusWithJob(any());
+    }
+
+    @Test
+    void processPendingTasks_ShouldSkip_WhenQueueIsBusy_WithCustomMaxQueueSize() throws Exception {
+        // Setup config for adjustThreadPoolSize
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setThreadPoolSize(3);
+        config.setMaxQueueSize(10);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+
+        // Mock ThreadPoolExecutor and Queue
+        ThreadPoolExecutor mockExecutor = mock(ThreadPoolExecutor.class);
+        @SuppressWarnings("unchecked")
+        BlockingQueue<Runnable> mockQueue = mock(BlockingQueue.class);
+        when(mockExecutor.getQueue()).thenReturn(mockQueue);
+        when(mockQueue.size()).thenReturn(11);
 
         // Inject mock executor via reflection
         Field executorField = ExecutorServiceImpl.class.getDeclaredField("downloadExecutor");
@@ -732,6 +761,9 @@ class ExecutorServiceImplTest {
         ytDlp.setOutputTemplate("%(title)s.%(ext)s");
         ytDlp.setOverwrite(OverwriteOption.FORCE);
         ytDlp.setUseCookie(true);
+        ytDlp.setSleepInterval(5);
+        ytDlp.setMaxSleepInterval(15);
+        ytDlp.setSleepSubtitles(2);
         config.setYtDlpConfig(ytDlp);
 
         // Mocks
@@ -783,6 +815,9 @@ class ExecutorServiceImplTest {
                 && list.contains("--extract-audio")
                 && list.contains("--audio-format") && list.contains("mp3")
                 && list.contains("--audio-quality") && list.contains("0")
+                && list.contains("--sleep-interval") && list.contains("5")
+                && list.contains("--max-sleep-interval") && list.contains("15")
+                && list.contains("--sleep-subtitles") && list.contains("2")
                 && !list.contains("--write-subs")
         ), any());
 
@@ -799,7 +834,70 @@ class ExecutorServiceImplTest {
                 && list.contains("-k")
                 && list.contains("-o") && list.contains("%(title)s.%(ext)s")
                 && list.contains("--force-overwrites")
+                && list.contains("--sleep-interval") && list.contains("5")
+                && list.contains("--max-sleep-interval") && list.contains("15")
+                && list.contains("--sleep-subtitles") && list.contains("2")
                 && !list.contains("--extract-audio")
+        ), any());
+    }
+
+    @Test
+    void processPendingTasks_ShouldSkipSleepOptions_WhenConfiguredZeroOrNegative(@TempDir Path tempDir) throws Exception {
+        // Setup Job and Task
+        DownloadJob job = new DownloadJob("zero-sleep-config");
+        ReflectionTestUtils.setField(job, "id", "job-zero-sleep");
+        DownloadTask task = DownloadTask.create(job, "vid-zero-sleep", "Zero Sleep Video", false);
+        ReflectionTestUtils.setField(task, "id", "task-zero-sleep");
+        job.addTask(task);
+
+        // Setup Config
+        DownloaderConfig config = new DownloaderConfig("zero-sleep-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("zero-sleep-config");
+        ytDlp.setSleepInterval(0);
+        ytDlp.setMaxSleepInterval(-1);
+        ytDlp.setSleepSubtitles(0);
+        config.setYtDlpConfig(ytDlp);
+
+        // Mocks
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("zero-sleep-config")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+        when(downloadJobRepository.findByIdWithTasks("job-zero-sleep")).thenReturn(Optional.of(job));
+
+        // Spy
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+
+        injectSynchronousExecutor(spyService);
+
+        // Mock Processes
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(0);
+
+        Process downloadProcess = mock(Process.class);
+        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
+        when(downloadProcess.waitFor()).thenReturn(0);
+
+        // Mock startProcess
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
+        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> !list.contains("-U")), any());
+
+        // Execute
+        spyService.processPendingTasks();
+
+        // Verify
+        verify(downloadTaskRepository, timeout(5000).atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+
+        verify(spyService).startProcess(argThat(list
+                -> !list.contains("-U")
+                && !list.contains("--sleep-interval")
+                && !list.contains("--max-sleep-interval")
+                && !list.contains("--sleep-subtitles")
         ), any());
     }
 

@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ class DownloaderDefaultPropertiesTest {
 
         assertEquals(60, properties.getDuration());
         assertEquals(3, properties.getThreadPoolSize());
+        assertEquals(50, properties.getMaxQueueSize());
         assertTrue(properties.isStartDownloadAutomatically());
         assertFalse(properties.isRemoveCompletedJobAutomatically());
         assertNotNull(properties.getYtdlp());
@@ -62,6 +64,9 @@ class DownloaderDefaultPropertiesTest {
         assertEquals(OverwriteOption.DEFAULT, ytdlp.getOverwrite());
         assertFalse(ytdlp.isNoProgress());
         assertFalse(ytdlp.isUseCookie());
+        assertNull(ytdlp.getSleepInterval());
+        assertNull(ytdlp.getMaxSleepInterval());
+        assertNull(ytdlp.getSleepSubtitles());
     }
 
     @Test
@@ -77,6 +82,7 @@ class DownloaderDefaultPropertiesTest {
         properties.setClientId("client-id");
         properties.setClientSecret("client-secret");
         properties.setThreadPoolSize(5);
+        properties.setMaxQueueSize(100);
 
         assertEquals("/tmp/downloads", properties.getDownloadFolder());
         assertEquals("/tmp/cookies", properties.getNetscapeCookieFolder());
@@ -86,6 +92,7 @@ class DownloaderDefaultPropertiesTest {
         assertEquals("client-id", properties.getClientId());
         assertEquals("client-secret", properties.getClientSecret());
         assertEquals(5, properties.getThreadPoolSize());
+        assertEquals(100, properties.getMaxQueueSize());
 
         // Ytdlp setters
         DownloaderDefaultProperties.Ytdlp ytdlp = properties.getYtdlp();
@@ -105,6 +112,9 @@ class DownloaderDefaultPropertiesTest {
         ytdlp.setOverwrite(OverwriteOption.FORCE);
         ytdlp.setNoProgress(true);
         ytdlp.setUseCookie(true);
+        ytdlp.setSleepInterval(5);
+        ytdlp.setMaxSleepInterval(15);
+        ytdlp.setSleepSubtitles(2);
 
         assertEquals("res:1080", ytdlp.getFormatSorting());
         assertEquals("best", ytdlp.getFormatFiltering());
@@ -122,6 +132,9 @@ class DownloaderDefaultPropertiesTest {
         assertEquals(OverwriteOption.FORCE, ytdlp.getOverwrite());
         assertTrue(ytdlp.isNoProgress());
         assertTrue(ytdlp.isUseCookie());
+        assertEquals(5, ytdlp.getSleepInterval());
+        assertEquals(15, ytdlp.getMaxSleepInterval());
+        assertEquals(2, ytdlp.getSleepSubtitles());
     }
 
     @Test

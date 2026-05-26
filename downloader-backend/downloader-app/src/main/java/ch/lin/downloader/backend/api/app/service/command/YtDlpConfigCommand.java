@@ -120,4 +120,19 @@ public class YtDlpConfigCommand {
      * Cookie content to be used for authentication.
      */
     private String cookie;
+
+    /**
+     * Number of seconds to sleep before each download.
+     */
+    private Integer sleepInterval;
+
+    /**
+     * Upper bound of a range for randomized sleep before each download.
+     */
+    private Integer maxSleepInterval;
+
+    /**
+     * Number of seconds to sleep before each subtitle download.
+     */
+    private Integer sleepSubtitles;
 }

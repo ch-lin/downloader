@@ -48,6 +48,7 @@ public class ConfigMapper {
         command.setClientId(request.getClientId());
         command.setClientSecret(request.getClientSecret());
         command.setThreadPoolSize(request.getThreadPoolSize());
+        command.setMaxQueueSize(request.getMaxQueueSize());
         command.setYtDlpConfig(toCommand(request.getYtDlpConfig()));
         return command;
     }
@@ -64,6 +65,7 @@ public class ConfigMapper {
         command.setClientId(request.getClientId());
         command.setClientSecret(request.getClientSecret());
         command.setThreadPoolSize(request.getThreadPoolSize());
+        command.setMaxQueueSize(request.getMaxQueueSize());
         command.setYtDlpConfig(toCommand(request.getYtDlpConfig()));
         return command;
     }
@@ -90,6 +92,9 @@ public class ConfigMapper {
         command.setNoProgress(request.getNoProgress());
         command.setUseCookie(request.getUseCookie());
         command.setCookie(request.getCookie());
+        command.setSleepInterval(request.getSleepInterval());
+        command.setMaxSleepInterval(request.getMaxSleepInterval());
+        command.setSleepSubtitles(request.getSleepSubtitles());
         return command;
     }
 }

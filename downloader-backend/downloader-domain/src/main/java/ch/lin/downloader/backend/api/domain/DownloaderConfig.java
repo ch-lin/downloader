@@ -57,8 +57,8 @@ import lombok.experimental.SuperBuilder;
     @Index(name = DownloaderConfig.NAME_INDEX, columnList = DownloaderConfig.NAME_COLUMN)}, uniqueConstraints = {
     @UniqueConstraint(columnNames = DownloaderConfig.NAME_COLUMN)})
 @Getter
-@EqualsAndHashCode(of = {"name", "enabled", "duration", "startDownloadAutomatically",
-    "removeCompletedJobAutomatically", "clientId", "clientSecret", "threadPoolSize", "ytDlpConfig"}, callSuper = false)
+@EqualsAndHashCode(of = {"name", "enabled", "duration", "startDownloadAutomatically", "removeCompletedJobAutomatically",
+    "clientId", "clientSecret", "threadPoolSize", "maxQueueSize", "ytDlpConfig"}, callSuper = false)
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -119,6 +119,11 @@ public class DownloaderConfig extends AuditableEntity {
      * The name of the thread pool size column in the database.
      */
     public static final String THREAD_POOL_SIZE_COLUMN = "thread_pool_size";
+
+    /**
+     * The name of the maximum queue size column in the database.
+     */
+    public static final String MAX_QUEUE_SIZE_COLUMN = "max_queue_size";
 
     /**
      * The name of the yt-dlp config ID column in the database.
@@ -189,6 +194,13 @@ public class DownloaderConfig extends AuditableEntity {
     @Column(name = DownloaderConfig.THREAD_POOL_SIZE_COLUMN, nullable = false)
     @Setter
     private Integer threadPoolSize;
+
+    /**
+     * The maximum size of the executor queue before skipping new task fetches.
+     */
+    @Column(name = DownloaderConfig.MAX_QUEUE_SIZE_COLUMN)
+    @Setter
+    private Integer maxQueueSize;
 
     /**
      * The associated yt-dlp configuration. This is a one-to-one relationship,

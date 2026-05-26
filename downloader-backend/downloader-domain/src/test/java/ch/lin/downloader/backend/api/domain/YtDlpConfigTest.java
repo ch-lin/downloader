@@ -48,6 +48,9 @@ class YtDlpConfigTest {
         config.setNoProgress(true);
         config.setUseCookie(true);
         config.setCookie("cookie-content");
+        config.setSleepInterval(5);
+        config.setMaxSleepInterval(15);
+        config.setSleepSubtitles(2);
 
         assertThat(config.getName()).isEqualTo("default");
         assertThat(config.getFormatFiltering()).isEqualTo("best");
@@ -67,6 +70,9 @@ class YtDlpConfigTest {
         assertThat(config.getNoProgress()).isTrue();
         assertThat(config.getUseCookie()).isTrue();
         assertThat(config.getCookie()).isEqualTo("cookie-content");
+        assertThat(config.getSleepInterval()).isEqualTo(5);
+        assertThat(config.getMaxSleepInterval()).isEqualTo(15);
+        assertThat(config.getSleepSubtitles()).isEqualTo(2);
     }
 
     @Test
