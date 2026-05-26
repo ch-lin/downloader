@@ -144,6 +144,30 @@ class ExecutorServiceImplTest {
     }
 
     @Test
+    void init_ShouldResetQueuedTasksToPending_WhenQueuedTasksExist() {
+        // Setup queued task
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-queued");
+        DownloadTask task = DownloadTask.create(job, "vid-queued", "Queued Video", false);
+        ReflectionTestUtils.setField(task, "id", "task-queued");
+        task.setStatus(TaskStatus.QUEUED);
+        job.addTask(task);
+
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.DOWNLOADING)).thenReturn(Collections.emptyList());
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.QUEUED)).thenReturn(List.of(task));
+
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setStartDownloadAutomatically(false);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+
+        executorService.init();
+
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.PENDING);
+        verify(downloadTaskRepository).save(task);
+        verify(apiClientService, never()).updateItemStatus(any(), any(), any());
+    }
+
+    @Test
     void init_ShouldHandleExceptionDuringStuckTasksReset() {
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.DOWNLOADING)).thenThrow(new RuntimeException("Simulated DB Error"));
 
@@ -184,6 +208,34 @@ class ExecutorServiceImplTest {
 
         verify(downloadTaskRepository, never()).save(any());
         verify(apiClientService, never()).updateItemStatus(any(), any(), any());
+    }
+
+    @Test
+    void init_ShouldDoNothing_WhenQueuedTasksIsEmpty() {
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.DOWNLOADING)).thenReturn(Collections.emptyList());
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.QUEUED)).thenReturn(Collections.emptyList());
+
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setStartDownloadAutomatically(false);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+
+        executorService.init();
+
+        verify(downloadTaskRepository, never()).save(any());
+    }
+
+    @Test
+    void init_ShouldDoNothing_WhenQueuedTasksIsNull() {
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.DOWNLOADING)).thenReturn(Collections.emptyList());
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.QUEUED)).thenReturn(null);
+
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setStartDownloadAutomatically(false);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+
+        executorService.init();
+
+        verify(downloadTaskRepository, never()).save(any());
     }
 
     @Test
@@ -331,7 +383,7 @@ class ExecutorServiceImplTest {
     }
 
     @Test
-    void processPendingTasks_ShouldProcessTasks_WhenPendingTasksExist() {
+    void processPendingTasks_ShouldProcessTasks_WhenPendingTasksExist() throws Exception {
         DownloadJob job = new DownloadJob("default");
         ReflectionTestUtils.setField(job, "id", "job-1");
         DownloadTask task = DownloadTask.create(job, "vid-1", "Test Video", false);
@@ -341,13 +393,16 @@ class ExecutorServiceImplTest {
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
         when(configsService.getResolvedConfig(null)).thenReturn(new DownloaderConfig("default")); // For thread pool adjustment
 
+        java.util.concurrent.ExecutorService mockExecutor = mock(java.util.concurrent.ExecutorService.class);
+        Field executorField = ExecutorServiceImpl.class.getDeclaredField("downloadExecutor");
+        executorField.setAccessible(true);
+        executorField.set(executorService, mockExecutor);
+
         executorService.processPendingTasks();
 
         verify(downloadTaskRepository).save(task);
-        assertThat(task.getStatus()).isEqualTo(TaskStatus.DOWNLOADING);
-        verify(apiClientService).updateItemStatus("vid-1", "task-1", TaskStatus.DOWNLOADING);
-        // Note: The actual execution inside the thread pool is hard to verify without a custom ExecutorService factory.
-        // We assume the submission happens if the code reaches this point.
+        assertThat(task.getStatus()).isEqualTo(TaskStatus.QUEUED);
+        verify(mockExecutor).submit(any(Runnable.class));
     }
 
     @Test

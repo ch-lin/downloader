@@ -84,7 +84,7 @@ class DownloaderControllerTest {
 
         DownloadJob job = new DownloadJob("default");
         DownloadTask task = DownloadTask.create(job, "vid1", "Title 1", false);
-        ReflectionTestUtils.setField(task, "id", "task1");
+        ReflectionTestUtils.setField(Objects.requireNonNull(task), "id", "task1");
         job.addTask(task);
 
         when(downloadService.createDownloadJob(anyList(), eq("default"))).thenReturn(job);

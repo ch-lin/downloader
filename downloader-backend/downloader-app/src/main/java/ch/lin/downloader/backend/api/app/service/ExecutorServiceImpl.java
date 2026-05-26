@@ -149,6 +149,16 @@ public class ExecutorServiceImpl implements ExecutorService {
                     }
                 }
             }
+
+            // Also reset QUEUED tasks back to PENDING so they can be picked up again
+            List<DownloadTask> queuedTasks = downloadTaskRepository.findAllByStatusWithJob(TaskStatus.QUEUED);
+            if (queuedTasks != null && !queuedTasks.isEmpty()) {
+                logger.info("Found {} tasks stuck in QUEUED state. Resetting them to PENDING.", queuedTasks.size());
+                for (DownloadTask task : queuedTasks) {
+                    task.setStatus(TaskStatus.PENDING);
+                    downloadTaskRepository.save(task);
+                }
+            }
         } catch (Exception e) {
             logger.warn("Could not reset stuck tasks during initialization: {}", e.getMessage());
         }
@@ -232,14 +242,17 @@ public class ExecutorServiceImpl implements ExecutorService {
         }
 
         for (DownloadTask task : pendingTasks) {
-            task.setStatus(TaskStatus.DOWNLOADING);
+            task.setStatus(TaskStatus.QUEUED);
             downloadTaskRepository.save(task);
-
-            // Update API status to DOWNLOADING
-            apiClientService.updateItemStatus(task.getVideoId(), task.getId(), TaskStatus.DOWNLOADING);
 
             downloadExecutor.submit(() -> {
                 try {
+                    task.setStatus(TaskStatus.DOWNLOADING);
+                    downloadTaskRepository.save(task);
+
+                    // Update API status to DOWNLOADING
+                    apiClientService.updateItemStatus(task.getVideoId(), task.getId(), TaskStatus.DOWNLOADING);
+
                     DownloadJob job = task.getJob();
                     logger.info("Starting download for video '{}' (Task ID: {}, Job ID: {})", task.getTitle(), task.getId(),
                             job.getId());
