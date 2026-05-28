@@ -25,6 +25,7 @@ package ch.lin.downloader.backend.api.app.service;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -115,9 +116,28 @@ public class DownloaderServiceImpl implements DownloaderService {
 
         DownloadJob job = new DownloadJob(configName);
 
+        List<String> requestedVideoIds = items.stream()
+                .map(DownloadItem::getVideoId)
+                .collect(Collectors.toList());
+
+        Set<String> activeVideoIds = downloadTaskRepository.findActiveVideoIds(
+                requestedVideoIds,
+                List.of(TaskStatus.PENDING, TaskStatus.QUEUED, TaskStatus.DOWNLOADING)
+        );
+
         for (DownloadItem item : items) {
-            logger.debug("Creating task for videoId: {}", item.getVideoId());
-            job.addTask(createTaskFromItem(job, item, activeConfig));
+            if (activeVideoIds.contains(item.getVideoId())) {
+                logger.info("Skipping task creation for videoId: {} because it is already actively processing.", item.getVideoId());
+            } else {
+                logger.debug("Creating task for videoId: {}", item.getVideoId());
+                job.addTask(createTaskFromItem(job, item, activeConfig));
+            }
+        }
+
+        if (job.getTasks().isEmpty()) {
+            logger.info("All requested videos are already actively processing. Saving job as COMPLETED with 0 tasks.");
+            job.setStatus(JobStatus.COMPLETED);
+            return downloadJobRepository.save(job);
         }
 
         DownloadJob savedJob = downloadJobRepository.save(job);

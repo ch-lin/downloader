@@ -94,4 +94,15 @@ public interface DownloadTaskRepository extends JpaRepository<DownloadTask, Stri
     @NonNull
     Optional<DownloadTask> findById(@Param("taskId") @NonNull String taskId);
 
+    /**
+     * Finds the video IDs of tasks that match the given video IDs and statuses.
+     * This is optimized to only return the video IDs (Strings) rather than full
+     * entities.
+     *
+     * @param videoIds The list of video IDs to check.
+     * @param statuses The collection of statuses to match.
+     * @return A {@link java.util.Set} of matching video IDs.
+     */
+    @Query("SELECT t.videoId FROM DownloadTask t WHERE t.videoId IN :videoIds AND t.status IN :statuses")
+    java.util.Set<String> findActiveVideoIds(@Param("videoIds") java.util.Collection<String> videoIds, @Param("statuses") java.util.Collection<TaskStatus> statuses);
 }

@@ -28,12 +28,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.never;
@@ -111,6 +113,57 @@ class DownloaderServiceImplTest {
 
         verify(executorService).start();
         verify(autoCleanupService).start();
+    }
+
+    @Test
+    void createDownloadJob_ShouldSkipTaskCreation_WhenItemIsActivelyProcessing() {
+        String configName = "default";
+        DownloaderConfig config = new DownloaderConfig(configName);
+        config.setStartDownloadAutomatically(true);
+
+        when(configsService.getResolvedConfig(configName)).thenReturn(config);
+        when(downloadTaskRepository.findActiveVideoIds(anyList(), anyList())).thenReturn(Set.of("vid-active"));
+        when(downloadJobRepository.save(Objects.requireNonNull(anyDownloadJob()))).thenAnswer(i -> {
+            DownloadJob job = i.getArgument(0);
+            ReflectionTestUtils.setField(Objects.requireNonNull(job), "id", "job-id");
+            return job;
+        });
+
+        List<DownloadItem> items = new ArrayList<>();
+        DownloadItem activeItem = new DownloadItem();
+        activeItem.setVideoId("vid-active");
+        items.add(activeItem);
+
+        DownloadItem newItem = new DownloadItem();
+        newItem.setVideoId("vid-new");
+        items.add(newItem);
+
+        DownloadJob result = downloaderService.createDownloadJob(items, configName);
+
+        assertThat(result.getTasks()).hasSize(1);
+        assertThat(result.getTasks().get(0).getVideoId()).isEqualTo("vid-new");
+        assertThat(result.getStatus()).isEqualTo(JobStatus.PENDING);
+    }
+
+    @Test
+    void createDownloadJob_ShouldReturnCompletedJob_WhenAllItemsAreActivelyProcessing() {
+        String configName = "default";
+        DownloaderConfig config = new DownloaderConfig(configName);
+
+        when(configsService.getResolvedConfig(configName)).thenReturn(config);
+        when(downloadTaskRepository.findActiveVideoIds(anyList(), anyList())).thenReturn(Set.of("vid1"));
+        when(downloadJobRepository.save(Objects.requireNonNull(anyDownloadJob()))).thenAnswer(i -> i.getArgument(0));
+
+        List<DownloadItem> items = new ArrayList<>();
+        DownloadItem item = new DownloadItem();
+        item.setVideoId("vid1");
+        items.add(item);
+
+        DownloadJob result = downloaderService.createDownloadJob(items, configName);
+
+        assertThat(result.getTasks()).isEmpty();
+        assertThat(result.getStatus()).isEqualTo(JobStatus.COMPLETED);
+        verify(executorService, never()).start();
     }
 
     @Test
