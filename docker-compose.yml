@@ -85,6 +85,12 @@ services:
       # It's good practice to also provide credentials via environment variables
       - SPRING_DATASOURCE_USERNAME=${MYSQL_USER}
       - SPRING_DATASOURCE_PASSWORD=${MYSQL_PASSWORD}
+
+      # Central Logging Database Configuration
+      - LOGGING_DB_URL=jdbc:mysql://logging-db:3306/central_logs?useSSL=false&allowPublicKeyRetrieval=true
+      - LOGGING_DB_USERNAME=${LOGGING_MYSQL_USER:-logger}
+      - LOGGING_DB_PASSWORD=${LOGGING_MYSQL_PASSWORD}
+
       # Override the server port to 8080 for the container environment
       - SERVER_PORT=8080
       # Configure CORS allowed origins

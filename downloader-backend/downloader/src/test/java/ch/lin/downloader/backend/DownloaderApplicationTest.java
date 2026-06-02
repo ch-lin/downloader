@@ -26,6 +26,7 @@ package ch.lin.downloader.backend;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -40,6 +41,7 @@ import ch.lin.downloader.backend.api.mapper.ConfigMapper;
     "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
     "spring.jpa.hibernate.ddl-auto=create-drop"
 })
+@ActiveProfiles("test")
 class DownloaderApplicationTest {
 
     @MockitoBean
