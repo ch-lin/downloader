@@ -59,7 +59,7 @@
 
     <springProfile name="!test">
         <!-- Database Appender for Central Logging -->
-        <appender name="DB" class="ch.qos.logback.classic.db.DBAppender">
+        <appender name="DB" class="ch.lin.platform.logging.ResilientDBAppender">
             <connectionSource class="ch.qos.logback.core.db.DriverManagerConnectionSource">
                 <!-- <dataSource class="com.mchange.v2.c3p0.ComboPooledDataSource"> -->
                     <driverClass>com.mysql.cj.jdbc.Driver</driverClass>
@@ -77,6 +77,7 @@
         <appender name="ASYNC_DB" class="ch.qos.logback.classic.AsyncAppender">
             <queueSize>512</queueSize>
             <discardingThreshold>0</discardingThreshold>
+            <neverBlock>true</neverBlock>
             <appender-ref ref="DB" />
         </appender>
     </springProfile>
