@@ -23,10 +23,19 @@
  THE SOFTWARE.
 -->
 <configuration>
+    <!-- Include Spring Boot's default logback configuration for base setup. -->
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
+    <!-- Bridge properties from application.properties -->
+    <springProperty scope="context" name="LOGGING_DB_URL" source="LOGGING_DB_URL" defaultValue="jdbc:mysql://localhost:3306/central_logs?useSSL=false&amp;allowPublicKeyRetrieval=true" />
+    <springProperty scope="context" name="LOGGING_DB_USERNAME" source="LOGGING_DB_USERNAME" defaultValue="logger" />
+    <springProperty scope="context" name="LOGGING_DB_PASSWORD" source="LOGGING_DB_PASSWORD" />
+
+    <!-- Define a property for the log file path. It uses environment variables or system properties
+         with fallbacks, defaulting to a 'spring.log' file in the system's temp directory. -->
     <property name="LOG_FILE" value="${LOG_FILE:-${LOG_PATH:-${LOG_TEMP:-${java.io.tmpdir:-/tmp}}}/spring.log}"/>
 
+    <!-- Appender for logging to the console (stdout). -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <!-- The key part is [%X{correlationId}] which prints the correlationId from MDC -->
@@ -34,24 +43,60 @@
         </encoder>
     </appender>
 
+    <!-- Appender for logging to a file, with rolling capabilities. -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_FILE}</file>
+        <!-- Time-based rolling policy. Creates a new log file daily and keeps a history of the last 30 days. -->
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>30</maxHistory>
         </rollingPolicy>
         <encoder>
+            <!-- Pattern for file logs, consistent with the console pattern. -->
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [%X{correlationId}] - %msg%n</pattern>
         </encoder>
     </appender>
+
+    <springProfile name="!test">
+        <!-- Database Appender for Central Logging -->
+        <appender name="DB" class="ch.qos.logback.classic.db.DBAppender">
+            <connectionSource class="ch.qos.logback.core.db.DriverManagerConnectionSource">
+                <!-- <dataSource class="com.mchange.v2.c3p0.ComboPooledDataSource"> -->
+                    <driverClass>com.mysql.cj.jdbc.Driver</driverClass>
+                    <!-- Read environment variables passed from Docker Compose -->
+                    <url>${LOGGING_DB_URL}</url>
+                    <user>${LOGGING_DB_USERNAME}</user>
+                    <password>${LOGGING_DB_PASSWORD}</password>
+                    <!-- <maximumPoolSize>3</maximumPoolSize> -->
+                <!-- </dataSource> -->
+            </connectionSource>
+            
+        </appender>
+
+        <!-- Wrap it in an Async Appender for performance -->
+        <appender name="ASYNC_DB" class="ch.qos.logback.classic.AsyncAppender">
+            <queueSize>512</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <appender-ref ref="DB" />
+        </appender>
+    </springProfile>
 
     <!-- Set DEBUG level for the application service package -->
     <!-- This will apply to DownloaderServiceImpl, ExecutorServiceImpl, etc. -->
     <!-- <logger name="ch.lin.downloader.backend.api.app.service" level="DEBUG"/> -->
 
+    <!-- The root logger configuration. All loggers inherit from this. -->
     <root level="INFO">
+        <!-- Attach both the CONSOLE and FILE appenders to the root logger. -->
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
     </root>
+
+    <!-- Add DB appender conditionally based on the active profile -->
+    <springProfile name="!test">
+        <root level="INFO">
+            <appender-ref ref="ASYNC_DB"/>
+        </root>
+    </springProfile>
 
 </configuration>
