@@ -44,6 +44,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ch.lin.downloader.backend.api.domain.DownloaderConfig;
 import ch.lin.downloader.backend.api.domain.TaskStatus;
 import ch.lin.platform.http.HttpClient;
+import ch.lin.platform.http.exception.HttpException;
 
 @ExtendWith(MockitoExtension.class)
 class ApiClientServiceTest {
@@ -168,6 +169,88 @@ class ApiClientServiceTest {
 
             HttpClient authClient = constructed.get(0);
             verify(authClient).post(anyString(), any(), anyString(), any());
+        }
+    }
+
+    @Test
+    void updateItem_ShouldLogWarning_WhenHttpExceptionIs404() throws Exception {
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setClientId("client-id");
+        config.setClientSecret("client-secret");
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+
+        try (MockedConstruction<HttpClient> mockedHttpClient = mockConstruction(HttpClient.class,
+                (mock, context) -> {
+                    if (context.arguments().size() > 1 && "auth.example.com".equals(context.arguments().get(1))) {
+                        HttpClient.Response authResponse = mock(HttpClient.Response.class);
+                        when(authResponse.body()).thenReturn("{\"access_token\":\"mock-token\"}");
+                        when(mock.post(anyString(), any(), anyString(), any())).thenReturn(authResponse);
+                    } else if (context.arguments().size() > 1 && "api.example.com".equals(context.arguments().get(1))) {
+                        when(mock.patch(anyString(), any(), anyString(), any()))
+                                .thenThrow(new HttpException("HTTP PATCH request failed", 404, "not found"));
+                    }
+                })) {
+
+            // Will not throw an exception because it should be handled internally
+            apiClientService.updateItem("vid1", "task1", 100L, "/path/to/file", TaskStatus.DOWNLOADED);
+
+            List<HttpClient> constructed = mockedHttpClient.constructed();
+            assertThat(constructed).hasSize(2);
+            HttpClient apiClient = constructed.get(1);
+            verify(apiClient).patch(eq("/items/vid1"), any(), contains("DOWNLOADED"), any());
+        }
+    }
+
+    @Test
+    void updateItem_ShouldLogError_WhenHttpExceptionIsOtherStatus() throws Exception {
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setClientId("client-id");
+        config.setClientSecret("client-secret");
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+
+        try (MockedConstruction<HttpClient> mockedHttpClient = mockConstruction(HttpClient.class,
+                (mock, context) -> {
+                    if (context.arguments().size() > 1 && "auth.example.com".equals(context.arguments().get(1))) {
+                        HttpClient.Response authResponse = mock(HttpClient.Response.class);
+                        when(authResponse.body()).thenReturn("{\"access_token\":\"mock-token\"}");
+                        when(mock.post(anyString(), any(), anyString(), any())).thenReturn(authResponse);
+                    } else if (context.arguments().size() > 1 && "api.example.com".equals(context.arguments().get(1))) {
+                        when(mock.patch(anyString(), any(), anyString(), any()))
+                                .thenThrow(new HttpException("HTTP PATCH request failed", 500, "server error"));
+                    }
+                })) {
+
+            apiClientService.updateItem("vid1", "task1", 100L, "/path/to/file", TaskStatus.DOWNLOADED);
+
+            List<HttpClient> constructed = mockedHttpClient.constructed();
+            assertThat(constructed).hasSize(2);
+        }
+    }
+
+    @Test
+    void updateItem_ShouldLogError_WhenHttpExceptionMessageIsNull() throws Exception {
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setClientId("client-id");
+        config.setClientSecret("client-secret");
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+
+        try (MockedConstruction<HttpClient> mockedHttpClient = mockConstruction(HttpClient.class,
+                (mockClient, context) -> {
+                    if (context.arguments().size() > 1 && "auth.example.com".equals(context.arguments().get(1))) {
+                        HttpClient.Response authResponse = mock(HttpClient.Response.class);
+                        when(authResponse.body()).thenReturn("{\"access_token\":\"mock-token\"}");
+                        when(mockClient.post(anyString(), any(), anyString(), any())).thenReturn(authResponse);
+                    } else if (context.arguments().size() > 1 && "api.example.com".equals(context.arguments().get(1))) {
+                        HttpException mockException = mock(HttpException.class);
+                        when(mockException.getMessage()).thenReturn(null);
+                        when(mockClient.patch(anyString(), any(), anyString(), any())).thenThrow(mockException);
+                    }
+                })) {
+
+            apiClientService.updateItem("vid1", "task1", 100L, "/path/to/file", TaskStatus.DOWNLOADED);
+
+            List<HttpClient> constructed = mockedHttpClient.constructed();
+            assertThat(constructed).hasSize(2);
         }
     }
 }
