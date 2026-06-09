@@ -43,6 +43,7 @@ import ch.lin.downloader.backend.api.domain.DownloaderConfig;
 import ch.lin.downloader.backend.api.domain.TaskStatus;
 import ch.lin.platform.http.HttpClient;
 import ch.lin.platform.http.Scheme;
+import ch.lin.platform.http.exception.HttpException;
 
 /**
  * Service for communicating with an external API to update the status of
@@ -145,6 +146,12 @@ public class ApiClientService {
                         requestBody.getStatus());
             }
 
+        } catch (HttpException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Status: 404")) {
+                logger.warn("Item {} not found in Hub (404). Skipping API update.", videoId);
+            } else {
+                logger.error("Failed to update item {} via API: {}", videoId, e.getMessage(), e);
+            }
         } catch (IOException | URISyntaxException e) {
             logger.error("Failed to update item {} via API: {}", videoId, e.getMessage(), e);
         }
