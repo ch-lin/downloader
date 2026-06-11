@@ -50,6 +50,7 @@ import static org.mockito.Answers.CALLS_REAL_METHODS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -845,7 +846,18 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(0);
 
         Process listSubsProcess = mock(Process.class);
-        when(listSubsProcess.getInputStream()).thenReturn(new ByteArrayInputStream("Available subtitles for...".getBytes()));
+        String subsOutput = """
+                            [youtube] Extracting video info
+                               
+                            
+                            [info] Downloading video webpage
+                            [info] Available subtitles for vid-full:
+                            Language Name Formats
+                            en English vtt
+                            """ // isBlank() branch
+                // isBlank() branch
+                ;
+        when(listSubsProcess.getInputStream()).thenReturn(new ByteArrayInputStream(subsOutput.getBytes()));
         when(listSubsProcess.waitFor()).thenReturn(0);
 
         Process downloadProcess = mock(Process.class);
@@ -884,7 +896,7 @@ class ExecutorServiceImplTest {
                 && list.contains("--format-sort") && list.contains("res:1080")
                 && list.contains("--write-subs")
                 && list.contains("--sub-lang") && list.contains("en")
-                && list.contains("--write-auto-subs")
+                && !list.contains("--write-auto-subs") // New logic: when manual subtitles are present, mutually exclusive with auto-subs
                 && list.contains("--sub-format") && list.contains("srt")
                 && list.contains("-k")
                 && list.contains("-o") && list.contains("%(title)s.%(ext)s")
@@ -1029,6 +1041,8 @@ class ExecutorServiceImplTest {
         DownloaderConfig config = new DownloaderConfig("subs-config");
         YtDlpConfig ytDlp = new YtDlpConfig("subs-config");
         ytDlp.setWriteSubs(true);
+        ytDlp.setWriteAutoSubs(true);
+        ytDlp.setSubLang("ja.*");
         config.setYtDlpConfig(ytDlp);
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
@@ -1049,7 +1063,8 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(0);
 
         Process listSubsProcess = mock(Process.class);
-        when(listSubsProcess.getInputStream()).thenReturn(new ByteArrayInputStream("has no subtitles\n".getBytes()));
+        String subsOutput = "[info] Available automatic captions for vid-subs:\nLanguage Name Formats\nko-orig Korean vtt\nja Japanese vtt\nvid-subs has no subtitles\n";
+        when(listSubsProcess.getInputStream()).thenReturn(new ByteArrayInputStream(subsOutput.getBytes()));
         //when(listSubsProcess.waitFor()).thenReturn(0);
 
         Process downloadProcess = mock(Process.class);
@@ -1065,7 +1080,246 @@ class ExecutorServiceImplTest {
         spyService.processPendingTasks();
 
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
-        //verify(spyService).startProcess(argThat(list -> !list.contains("--write-subs") && !list.contains("--list-subs") && !list.contains("-U")), any());
+
+        // Verify new logic: when manual subtitles are not found, --write-subs is not added, but --write-auto-subs and --sub-lang with dynamic fallback are added safely
+        verify(spyService).startProcess(argThat(list
+                -> !list.contains("--write-subs")
+                && list.contains("--sub-lang")
+                && list.contains("ko-orig")
+                && list.contains("--write-auto-subs")
+                && !list.contains("--list-subs")
+                && !list.contains("-U")
+                && list.contains("https://www.youtube.com/watch?v=vid-subs")
+        ), any());
+    }
+
+    @Test
+    void processPendingTasks_ShouldAddWriteSubsWithoutLang_WhenLangNotSpecified(@TempDir Path tempDir) throws Exception {
+        // Setup Job and Task
+        DownloadJob job = new DownloadJob("subs-no-lang");
+        ReflectionTestUtils.setField(job, "id", "job-subs-no-lang");
+        DownloadTask task = DownloadTask.create(job, "vid-subs-no-lang", "Subs No Lang Video", false);
+        ReflectionTestUtils.setField(task, "id", "task-subs-no-lang");
+        job.addTask(task);
+
+        // Setup Config
+        DownloaderConfig config = new DownloaderConfig("subs-no-lang");
+        YtDlpConfig ytDlp = new YtDlpConfig("subs-no-lang");
+        ytDlp.setWriteSubs(true);
+        ytDlp.setSubLang(null); // Explicitly no language specified
+        config.setYtDlpConfig(ytDlp);
+
+        // Mocks
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("subs-no-lang")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+        when(downloadJobRepository.findByIdWithTasks("job-subs-no-lang")).thenReturn(Optional.of(job));
+
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+
+        injectSynchronousExecutor(spyService);
+
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(0);
+
+        Process listSubsProcess = mock(Process.class);
+        String subsOutput = "[info] Available subtitles for vid-subs-no-lang:\nLanguage Name Formats\nen English vtt\n";
+        when(listSubsProcess.getInputStream()).thenReturn(new ByteArrayInputStream(subsOutput.getBytes()));
+        when(listSubsProcess.waitFor()).thenReturn(0);
+
+        Process downloadProcess = mock(Process.class);
+        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
+        when(downloadProcess.waitFor()).thenReturn(0);
+
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
+        doReturn(listSubsProcess).when(spyService).startProcess(argThat(list -> list.contains("--list-subs")), any());
+        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> !list.contains("-U") && !list.contains("--list-subs")), any());
+
+        spyService.processPendingTasks();
+
+        verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+
+        verify(spyService).startProcess(argThat(list
+                -> list.contains("--write-subs")
+                && !list.contains("--sub-lang")
+                && !list.contains("-U")
+                && !list.contains("--list-subs")
+                && list.contains("https://www.youtube.com/watch?v=vid-subs-no-lang")
+        ), any());
+    }
+
+    @Test
+    void processPendingTasks_ShouldNotCheckSubs_WhenSubsNotRequested(@TempDir Path tempDir) throws Exception {
+        // Setup Job and Task
+        DownloadJob job = new DownloadJob("no-subs-job");
+        ReflectionTestUtils.setField(job, "id", "job-no-subs");
+        DownloadTask task = DownloadTask.create(job, "vid-no-subs", "No Subs Video", false);
+        ReflectionTestUtils.setField(task, "id", "task-no-subs");
+        job.addTask(task);
+
+        // Setup Config where neither manual nor auto subs are requested
+        DownloaderConfig config = new DownloaderConfig("no-subs-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("no-subs-config");
+        ytDlp.setWriteSubs(false);
+        ytDlp.setWriteAutoSubs(false);
+        config.setYtDlpConfig(ytDlp);
+
+        // Mocks
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("no-subs-job")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+        when(downloadJobRepository.findByIdWithTasks("job-no-subs")).thenReturn(Optional.of(job));
+
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+
+        injectSynchronousExecutor(spyService);
+
+        Process mockProcess = mock(Process.class);
+        when(mockProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
+        when(mockProcess.waitFor()).thenReturn(0);
+
+        // Mock startProcess to avoid real execution
+        doReturn(mockProcess).when(spyService).startProcess(any(), any());
+
+        // Execute
+        spyService.processPendingTasks();
+
+        // Verify the subtitle check process was NEVER started because wantsManual and wantsAuto are false
+        verify(spyService, never()).startProcess(argThat(list -> list.contains("--list-subs")), any());
+
+        // Verify no sub flags were added to the final download command
+        verify(spyService).startProcess(argThat(list
+                -> list != null
+                && !list.contains("--write-subs")
+                && !list.contains("--write-auto-subs")
+                && !list.contains("--sub-lang")
+                && !list.contains("--list-subs")
+                && // Ensure it's not the subtitle check command
+                !list.contains("-U") // Ensure it's not the update command
+        ), any());
+    }
+
+    @Test
+    void processPendingTasks_ShouldAddNoSubFlags_WhenAutoSubsWantedButNotAvailable(@TempDir Path tempDir) throws Exception {
+        // Setup
+        DownloadJob job = new DownloadJob("subs-config");
+        ReflectionTestUtils.setField(job, "id", "job-subs-no-auto");
+        DownloadTask task = DownloadTask.create(job, "vid-subs-no-auto", "Subs Video", false);
+        ReflectionTestUtils.setField(task, "id", "task-subs-no-auto");
+        job.addTask(task);
+
+        // Config wants auto subs, but not manual
+        DownloaderConfig config = new DownloaderConfig("subs-config");
+        YtDlpConfig ytDlp = new YtDlpConfig("subs-config");
+        ytDlp.setWriteSubs(false);
+        ytDlp.setWriteAutoSubs(true);
+        config.setYtDlpConfig(ytDlp);
+
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("subs-config")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(downloadJobRepository.findByIdWithTasks("job-subs-no-auto")).thenReturn(Optional.of(job));
+
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+
+        injectSynchronousExecutor(spyService);
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+
+        // Mock list-subs to return that NO subs of any kind are available
+        Process listSubsProcess = mock(Process.class);
+        String subsOutput = "vid-subs-no-auto has no automatic captions\nvid-subs-no-auto has no subtitles\n";
+        when(listSubsProcess.getInputStream()).thenReturn(new ByteArrayInputStream(subsOutput.getBytes()));
+        when(listSubsProcess.waitFor()).thenReturn(0);
+
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(0);
+
+        Process downloadProcess = mock(Process.class);
+        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
+        when(downloadProcess.waitFor()).thenReturn(0);
+
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("-U")), any());
+        doReturn(listSubsProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("--list-subs")), any());
+        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> list != null && !list.contains("-U") && !list.contains("--list-subs")), any());
+
+        // Execute
+        spyService.processPendingTasks();
+
+        // Verify that since no subs were available, no sub flags were added to the command
+        verify(spyService).startProcess(argThat(list -> list != null && !list.contains("-U") && !list.contains("--list-subs") && !list.contains("--write-auto-subs") && !list.contains("--sub-lang")), any());
+    }
+
+    @Test
+    void processPendingTasks_ShouldAddAutoSubs_WhenAutoSubsWantedAndAvailable_AndNoSubLang(@TempDir Path tempDir) throws Exception {
+        // Setup
+        DownloadJob job = new DownloadJob("subs-auto-only");
+        ReflectionTestUtils.setField(job, "id", "job-subs-auto-only");
+        DownloadTask task = DownloadTask.create(job, "vid-subs-auto-only", "Auto Subs Only Video", false);
+        ReflectionTestUtils.setField(task, "id", "task-subs-auto-only");
+        job.addTask(task);
+
+        // Config wants auto subs, no manual, and no sub lang specified
+        DownloaderConfig config = new DownloaderConfig("subs-auto-only");
+        YtDlpConfig ytDlp = new YtDlpConfig("subs-auto-only");
+        ytDlp.setWriteSubs(false);    // Triggers false branch for `if (wantsManual)`
+        ytDlp.setWriteAutoSubs(true);
+        ytDlp.setSubLang(null);       // Triggers false branch for `if (hasText(subLang))`
+        config.setYtDlpConfig(ytDlp);
+
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("subs-auto-only")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(downloadJobRepository.findByIdWithTasks("job-subs-auto-only")).thenReturn(Optional.of(job));
+
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+
+        injectSynchronousExecutor(spyService);
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+
+        Process listSubsProcess = mock(Process.class);
+        String subsOutput = "[info] Available automatic captions for vid-subs-auto-only:\nLanguage Name Formats\nen-orig English vtt\nvid-subs-auto-only has no subtitles\n";
+        when(listSubsProcess.getInputStream()).thenReturn(new ByteArrayInputStream(subsOutput.getBytes()));
+        when(listSubsProcess.waitFor()).thenReturn(0);
+
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(0);
+
+        Process downloadProcess = mock(Process.class);
+        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
+        when(downloadProcess.waitFor()).thenReturn(0);
+
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("-U")), any());
+        doReturn(listSubsProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("--list-subs")), any());
+        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> list != null && !list.contains("-U") && !list.contains("--list-subs")), any());
+
+        // Execute
+        spyService.processPendingTasks();
+
+        // Verify that auto subs were added correctly (meaning the false branches were executed successfully)
+        verify(spyService).startProcess(argThat(list -> list != null
+                && !list.contains("-U")
+                && !list.contains("--list-subs")
+                && !list.contains("--write-subs")
+                && list.contains("--write-auto-subs")
+                && list.contains("--sub-lang")
+                && list.contains("en-orig")), any());
     }
 
     @Test
