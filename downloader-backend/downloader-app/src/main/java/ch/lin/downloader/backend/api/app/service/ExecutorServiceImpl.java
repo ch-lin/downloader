@@ -449,8 +449,10 @@ public class ExecutorServiceImpl implements ExecutorService {
     private List<String> buildCommandForPhase(DownloaderConfig config, String videoUrl, boolean isAudioPhase, Path cookiePath, AtomicReference<Path> tempCookiePathRef, DownloadTask task, DownloadResult result) {
         List<String> command = new ArrayList<>();
         command.add("yt-dlp");
+        command.add("--impersonate");
+        command.add("chrome");
         command.add("--js-runtimes");
-        command.add("node");
+        command.add("deno");
 
         YtDlpConfig ytDlpConfig = config.getYtDlpConfig();
 
@@ -505,19 +507,38 @@ public class ExecutorServiceImpl implements ExecutorService {
                 command.add(ytDlpConfig.getRemuxVideo());
             }
 
-            // Pre-check for subtitles if writeSubs is enabled
-            boolean shouldWriteSubs = Boolean.TRUE.equals(ytDlpConfig.getWriteSubs()) && videoHasSubtitles(videoUrl);
-            if (shouldWriteSubs) {
-                command.add("--write-subs");
+            boolean wantsManual = Boolean.TRUE.equals(ytDlpConfig.getWriteSubs());
+            boolean wantsAuto = Boolean.TRUE.equals(ytDlpConfig.getWriteAutoSubs());
+
+            boolean appendSubLang = false;
+            String langToUse = ytDlpConfig.getSubLang();
+
+            if (wantsManual || wantsAuto) {
+                SubtitleInfo subInfo = getSubtitleInfo(videoUrl, tempCookiePathRef.get());
+
+                if (wantsManual && subInfo.hasManualSubs) {
+                    command.add("--write-subs");
+                    appendSubLang = true;
+                } else if (wantsAuto && subInfo.hasAutoSubs) {
+                    if (wantsManual) {
+                        logger.info("Manual subtitles are enabled but not found for video {}. Falling back to auto-generated captions.", task.getVideoId());
+                    }
+
+                    command.add("--write-auto-subs");
+                    appendSubLang = true;
+
+                    // To protect the system and avoid triggering YouTube's translation API 429 error for auto-captions,
+                    // completely ignore the user-configured language and enforce the use of the detected original audio language (-orig).
+                    if (StringUtils.hasText(ytDlpConfig.getSubLang())) {
+                        logger.info("Ignoring configured sub-lang '{}' and enforcing original language '{}' for auto-captions to prevent HTTP 429 errors.", ytDlpConfig.getSubLang(), subInfo.autoOriginalLanguage);
+                    }
+                    langToUse = subInfo.autoOriginalLanguage;
+                }
             }
 
-            if (StringUtils.hasText(ytDlpConfig.getSubLang())) {
+            if (appendSubLang && StringUtils.hasText(langToUse)) {
                 command.add("--sub-lang");
-                command.add(ytDlpConfig.getSubLang());
-            }
-
-            if (Boolean.TRUE.equals(ytDlpConfig.getWriteAutoSubs())) {
-                command.add("--write-auto-subs");
+                command.add(langToUse);
             }
 
             if (StringUtils.hasText(ytDlpConfig.getSubFormat())) {
@@ -821,17 +842,37 @@ public class ExecutorServiceImpl implements ExecutorService {
     }
 
     /**
-     * Checks if a video has subtitles available.
+     * Data structure to hold parsed subtitle information from yt-dlp.
+     */
+    private static class SubtitleInfo {
+
+        boolean hasManualSubs = false;
+        boolean hasAutoSubs = false;
+        List<String> manualLanguages = new ArrayList<>();
+        String autoOriginalLanguage = null;
+    }
+
+    /**
+     * Checks what subtitles and automatic captions are available for a video.
      *
      * @param videoUrl The URL of the video to check.
-     * @return True if subtitles are available, false otherwise.
+     * @param cookiePath Temporary cookie file to bypass YouTube blocks.
+     * @return A SubtitleInfo object containing the available subtitle
+     * languages.
      */
-    private boolean videoHasSubtitles(String videoUrl) {
+    private SubtitleInfo getSubtitleInfo(String videoUrl, Path cookiePath) {
+        SubtitleInfo info = new SubtitleInfo();
         logger.info("Checking for subtitles for video: {}", videoUrl);
         List<String> command = new ArrayList<>();
         command.add("yt-dlp");
+        command.add("--impersonate");
+        command.add("chrome");
         command.add("--js-runtimes");
-        command.add("node");
+        command.add("deno");
+        if (cookiePath != null) {
+            command.add("--cookies");
+            command.add(cookiePath.toString());
+        }
         command.add("--list-subs");
         command.add(videoUrl);
 
@@ -839,24 +880,61 @@ public class ExecutorServiceImpl implements ExecutorService {
             Process process = startProcess(command, null);
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
+                boolean inAuto = false;
+                boolean inManual = false;
+
                 while ((line = reader.readLine()) != null) {
                     logger.debug("[yt-dlp --list-subs] {}", line);
-                    if (line.contains("has no subtitles")) {
-                        logger.info("Video {} has no subtitles.", videoUrl);
-                        return false;
+
+                    if (line.startsWith("[info] Available automatic captions")) {
+                        inAuto = true;
+                        inManual = false;
+                        continue;
+                    } else if (line.startsWith("[info] Available subtitles")) {
+                        inAuto = false;
+                        inManual = true;
+                        continue;
+                    } else if (line.contains("has no subtitles") || line.contains("has no automatic captions")) {
+                        if (line.contains("has no subtitles")) {
+                            inManual = false;
+                        }
+                        if (line.contains("has no automatic captions")) {
+                            inAuto = false;
+                        }
+                        continue;
+                    }
+
+                    if (line.startsWith("Language") || line.isBlank() || line.startsWith("[youtube]") || line.startsWith("[info]")) {
+                        continue;
+                    }
+
+                    // Parse language codes
+                    if (inAuto || inManual) {
+                        String[] parts = line.trim().split("\\s+", 2);
+                        String langCode = parts[0].trim();
+                        if (inAuto) {
+                            info.hasAutoSubs = true;
+                            if (langCode.endsWith("-orig")) {
+                                info.autoOriginalLanguage = langCode;
+                            }
+                        }
+                        if (inManual) {
+                            info.manualLanguages.add(langCode);
+                            info.hasManualSubs = true;
+                        }
                     }
                 }
             }
             int exitCode = process.waitFor();
             if (exitCode == 0) {
-                logger.info("Subtitles available for video {}.", videoUrl);
-                return true;
+                logger.info("Subtitle check completed for video {}. Manual: {}, Auto: {}",
+                        videoUrl, info.hasManualSubs, info.hasAutoSubs);
             }
         } catch (IOException | InterruptedException e) {
             logger.error("Failed to check for subtitles for video {}: {}", videoUrl, e.getMessage());
             Thread.currentThread().interrupt();
         }
-        return false; // Default to not writing subs if check fails
+        return info;
     }
 
     /**
