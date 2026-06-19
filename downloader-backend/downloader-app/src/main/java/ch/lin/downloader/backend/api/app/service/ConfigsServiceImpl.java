@@ -154,6 +154,7 @@ public class ConfigsServiceImpl implements ConfigsService {
         newDownloaderConfig.setClientSecret(request.getClientSecret());
         newDownloaderConfig.setThreadPoolSize(request.getThreadPoolSize());
         newDownloaderConfig.setMaxQueueSize(request.getMaxQueueSize());
+        newDownloaderConfig.setMaxDownloadRetries(request.getMaxDownloadRetries());
 
         YtDlpConfigCommand ytDlpConfigDto = request.getYtDlpConfig();
         YtDlpConfig newYtDlpConfig = new YtDlpConfig(configName); // Match the name for the relationship
@@ -330,6 +331,9 @@ public class ConfigsServiceImpl implements ConfigsService {
         if (request.getMaxQueueSize() != null) {
             downloaderConfig.setMaxQueueSize(request.getMaxQueueSize());
         }
+        if (request.getMaxDownloadRetries() != null) {
+            downloaderConfig.setMaxDownloadRetries(request.getMaxDownloadRetries());
+        }
 
         // Update the associated YtDlpConfig fields
         YtDlpConfig ytDlpConfig = downloaderConfig.getYtDlpConfig();
@@ -478,6 +482,9 @@ public class ConfigsServiceImpl implements ConfigsService {
             }
             if (dbConfig.getMaxQueueSize() == null) {
                 dbConfig.setMaxQueueSize(defaultConfig.getMaxQueueSize());
+            }
+            if (dbConfig.getMaxDownloadRetries() == null) {
+                dbConfig.setMaxDownloadRetries(defaultConfig.getMaxDownloadRetries());
             }
 
             YtDlpConfig dbYtDlpConfig = dbConfig.getYtDlpConfig();

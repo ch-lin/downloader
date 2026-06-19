@@ -39,6 +39,7 @@ class UpdateConfigCommandTest {
         command.setClientSecret("new-secret");
         command.setThreadPoolSize(10);
         command.setMaxQueueSize(100);
+        command.setMaxDownloadRetries(3);
 
         YtDlpConfigCommand ytDlpConfig = new YtDlpConfigCommand();
         command.setYtDlpConfig(ytDlpConfig);
@@ -51,6 +52,7 @@ class UpdateConfigCommandTest {
         assertThat(command.getClientSecret()).isEqualTo("new-secret");
         assertThat(command.getThreadPoolSize()).isEqualTo(10);
         assertThat(command.getMaxQueueSize()).isEqualTo(100);
+        assertThat(command.getMaxDownloadRetries()).isEqualTo(3);
         assertThat(command.getYtDlpConfig()).isEqualTo(ytDlpConfig);
     }
 }

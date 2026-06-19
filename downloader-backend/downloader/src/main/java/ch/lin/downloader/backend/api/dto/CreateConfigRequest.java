@@ -91,6 +91,12 @@ public class CreateConfigRequest {
     private Integer maxQueueSize = DownloaderDefaultProperties.DEFAULT_MAX_QUEUE_SIZE;
 
     /**
+     * The maximum number of retry attempts for downloading a video or audio.
+     * Defaults to the application property setting.
+     */
+    private Integer maxDownloadRetries = DownloaderDefaultProperties.DEFAULT_MAX_DOWNLOAD_RETRIES;
+
+    /**
      * The yt-dlp specific configuration settings.
      */
     @Valid

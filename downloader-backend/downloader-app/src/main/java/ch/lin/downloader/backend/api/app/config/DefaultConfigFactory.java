@@ -56,6 +56,7 @@ public class DefaultConfigFactory {
         downloaderConfig.setClientSecret(properties.getClientSecret());
         downloaderConfig.setThreadPoolSize(properties.getThreadPoolSize());
         downloaderConfig.setMaxQueueSize(properties.getMaxQueueSize());
+        downloaderConfig.setMaxDownloadRetries(properties.getMaxDownloadRetries());
 
         DownloaderDefaultProperties.Ytdlp ytdlpProps = properties.getYtdlp();
         // The name must match the parent for the relationship to work correctly

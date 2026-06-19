@@ -43,6 +43,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -95,8 +96,6 @@ public class ExecutorServiceImpl implements ExecutorService {
             "\\[.*?\\] Merging formats into \"(.*)\"");
     private static final Pattern ALREADY_DOWNLOADED_PATTERN = Pattern.compile(
             "\\[download\\] (.*) has already been downloaded");
-    private static final Pattern POST_PROCESSOR_DESTINATION_PATTERN = Pattern.compile(
-            "\\[(?:info|description|subtitles|auto_subs)\\] Writing .* to: (.*)");
     private final java.util.concurrent.ExecutorService downloadExecutor = Executors.newFixedThreadPool(3);
 
     private final DownloadTaskRepository downloadTaskRepository;
@@ -391,6 +390,8 @@ public class ExecutorServiceImpl implements ExecutorService {
 
         Path cookiePath = Paths.get(defaultProperties.getNetscapeCookieFolder(), config.getName() + "-cookie.txt");
 
+        int maxRetries = Optional.ofNullable(config.getMaxDownloadRetries()).orElse(3);
+
         DownloadSubTask audioSubTask = task.getSubTask(SubTaskType.AUDIO);
         if (audioSubTask != null) {
             audioSubTask.setStatus(TaskStatus.DOWNLOADING);
@@ -398,7 +399,26 @@ public class ExecutorServiceImpl implements ExecutorService {
             downloadTaskRepository.save(task);
 
             logger.info("Starting Audio extraction for video '{}'", task.getVideoId());
-            boolean audioSuccess = executeYtDlpPhase(task, audioSubTask, config, videoDirectory, videoUrl, true, cookiePath, result);
+            boolean audioSuccess = false;
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                if (attempt > 1) {
+                    logger.info("Retrying Audio extraction for video '{}' (Attempt {}/{})", task.getVideoId(), attempt, maxRetries);
+                }
+                audioSuccess = executeYtDlpPhase(task, audioSubTask, config, videoDirectory, videoUrl, true, cookiePath, result);
+                if (audioSuccess) {
+                    break;
+                }
+                try {
+                    if (attempt < maxRetries) {
+                        long backoffMs = calculateRetryBackoffMs(config);
+                        logger.info("Sleeping for {} ms before next audio extraction attempt...", backoffMs);
+                        sleepForRetry(backoffMs);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
 
             if (!audioSuccess) {
                 audioSubTask.setStatus(TaskStatus.FAILED);
@@ -418,7 +438,26 @@ public class ExecutorServiceImpl implements ExecutorService {
             downloadTaskRepository.save(task);
 
             logger.info("Starting Video download for video '{}'", task.getVideoId());
-            boolean videoSuccess = executeYtDlpPhase(task, videoSubTask, config, videoDirectory, videoUrl, false, cookiePath, result);
+            boolean videoSuccess = false;
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                if (attempt > 1) {
+                    logger.info("Retrying Video download for video '{}' (Attempt {}/{})", task.getVideoId(), attempt, maxRetries);
+                }
+                videoSuccess = executeYtDlpPhase(task, videoSubTask, config, videoDirectory, videoUrl, false, cookiePath, result);
+                if (videoSuccess) {
+                    break;
+                }
+                try {
+                    if (attempt < maxRetries) {
+                        long backoffMs = calculateRetryBackoffMs(config);
+                        logger.info("Sleeping for {} ms before next video download attempt...", backoffMs);
+                        sleepForRetry(backoffMs);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
 
             if (!videoSuccess) {
                 videoSubTask.setStatus(TaskStatus.FAILED);
@@ -444,6 +483,48 @@ public class ExecutorServiceImpl implements ExecutorService {
 
         result.setSuccess(true);
         return result;
+    }
+
+    /**
+     * Calculates a randomized backoff time (in milliseconds) for retries based
+     * on the configuration.
+     *
+     * @param config The DownloaderConfig containing the sleep settings.
+     * @return A randomized sleep duration in milliseconds.
+     */
+    private long calculateRetryBackoffMs(DownloaderConfig config) {
+        long defaultBackoffMs = 2000L;
+        if (config == null || config.getYtDlpConfig() == null) {
+            return defaultBackoffMs;
+        }
+
+        YtDlpConfig ytDlpConfig = config.getYtDlpConfig();
+        Integer sleepSec = ytDlpConfig.getSleepInterval();
+        Integer maxSleepSec = ytDlpConfig.getMaxSleepInterval();
+
+        long minMs = (sleepSec != null && sleepSec > 0) ? sleepSec * 1000L : defaultBackoffMs;
+
+        if (maxSleepSec != null && maxSleepSec > 0) {
+            long maxMs = maxSleepSec * 1000L;
+            if (maxMs > minMs) {
+                return ThreadLocalRandom.current().nextLong(minMs, maxMs + 1);
+            } else if (maxMs == minMs) {
+                return minMs;
+            }
+        }
+        return minMs;
+    }
+
+    /**
+     * Pauses the current thread for the specified duration. Extracted to a
+     * separate method to avoid IDE/linter warnings about calling Thread.sleep()
+     * directly inside a loop.
+     *
+     * @param ms The number of milliseconds to sleep.
+     * @throws InterruptedException If the thread is interrupted while sleeping.
+     */
+    protected void sleepForRetry(long ms) throws InterruptedException {
+        Thread.sleep(ms);
     }
 
     private List<String> buildCommandForPhase(DownloaderConfig config, String videoUrl, boolean isAudioPhase, Path cookiePath, AtomicReference<Path> tempCookiePathRef, DownloadTask task, DownloadResult result) {
@@ -688,14 +769,24 @@ public class ExecutorServiceImpl implements ExecutorService {
 
             // 1. Primary Strategy: Try the filename parsed from yt-dlp output logs
             if (StringUtils.hasText(downloadedFile)) {
-                Path path = videoDirectory.resolve(downloadedFile);
-                if (Files.exists(path)) {
-                    subTask.setFilePath(path.toString());
-                    subTask.setFileSize(Files.size(path));
-                    fileFound = true;
-                    logger.info("Strategy 1: Identified final target file via yt-dlp logs: {}", downloadedFile);
+                String lowerName = downloadedFile.toLowerCase();
+                // Prevent metadata, subtitle, or thumbnail files from being mistakenly identified as the main media file.
+                boolean isMetadataFile = lowerName.endsWith(".info.json") || lowerName.endsWith(".description")
+                        || lowerName.endsWith(".vtt") || lowerName.endsWith(".srt") || lowerName.endsWith(".txt")
+                        || lowerName.endsWith(".jpg") || lowerName.endsWith(".png") || lowerName.endsWith(".webp");
+
+                if (!isMetadataFile) {
+                    Path path = videoDirectory.resolve(downloadedFile);
+                    if (Files.exists(path)) {
+                        subTask.setFilePath(path.toString());
+                        subTask.setFileSize(Files.size(path));
+                        fileFound = true;
+                        logger.info("Strategy 1: Identified final target file via yt-dlp logs: {}", downloadedFile);
+                    } else {
+                        logger.warn("Strategy 1: yt-dlp logs indicated final file '{}', but it wasn't found on disk. Falling back to directory scan.", downloadedFile);
+                    }
                 } else {
-                    logger.warn("Strategy 1: yt-dlp logs indicated final file '{}', but it wasn't found on disk. Falling back to directory scan.", downloadedFile);
+                    logger.debug("Strategy 1: Parsed filename '{}' is a metadata/image file. Ignoring it for media target.", downloadedFile);
                 }
             }
 
@@ -999,14 +1090,6 @@ public class ExecutorServiceImpl implements ExecutorService {
         var alreadyDownloadedMatcher = ALREADY_DOWNLOADED_PATTERN.matcher(line);
         if (alreadyDownloadedMatcher.find()) {
             finalFilename.set(alreadyDownloadedMatcher.group(1).trim());
-            return;
-        }
-
-        var postProcessorMatcher = POST_PROCESSOR_DESTINATION_PATTERN.matcher(line);
-        if (postProcessorMatcher.find()) {
-            // This captures filenames from post-processors, which can be useful if the main
-            // destination line is missed.
-            finalFilename.set(postProcessorMatcher.group(1).trim());
         }
     }
 
