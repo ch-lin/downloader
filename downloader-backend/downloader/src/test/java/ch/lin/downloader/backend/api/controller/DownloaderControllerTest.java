@@ -87,7 +87,7 @@ class DownloaderControllerTest {
         ReflectionTestUtils.setField(Objects.requireNonNull(task), "id", "task1");
         job.addTask(task);
 
-        when(downloadService.createDownloadJob(anyList(), eq("default"))).thenReturn(job);
+        when(downloadService.createDownloadJob(anyList(), eq("default"), eq(false))).thenReturn(job);
 
         String content = objectMapper.writeValueAsString(request);
         Objects.requireNonNull(content);
@@ -112,7 +112,7 @@ class DownloaderControllerTest {
                 .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
                 .content(content))
                 .andExpect(result -> org.assertj.core.api.Assertions.assertThat(result.getResolvedException())
-                .isInstanceOf(InvalidRequestException.class));
+                        .isInstanceOf(InvalidRequestException.class));
     }
 
     @Test
@@ -128,7 +128,7 @@ class DownloaderControllerTest {
                 .contentType(Objects.requireNonNull(MediaType.APPLICATION_JSON))
                 .content(content))
                 .andExpect(result -> org.assertj.core.api.Assertions.assertThat(result.getResolvedException())
-                .isInstanceOf(InvalidRequestException.class));
+                        .isInstanceOf(InvalidRequestException.class));
     }
 
     @Test

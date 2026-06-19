@@ -45,4 +45,9 @@ public class DownloadRequest {
      * The list of items (videos) to be downloaded.
      */
     private List<DownloadItem> items;
+
+    /**
+     * Indicates whether to force re-download of already completed tasks.
+     */
+    private boolean forceRedownload;
 }

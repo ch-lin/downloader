@@ -73,11 +73,11 @@ public class DownloaderServiceImpl implements DownloaderService {
     /**
      * Constructs a new DownloaderServiceImpl with the necessary dependencies.
      *
-     * @param downloadJobRepository Repository for DownloadJob entities.
+     * @param downloadJobRepository  Repository for DownloadJob entities.
      * @param downloadTaskRepository Repository for DownloadTask entities.
-     * @param configsService Service for managing configurations.
-     * @param executorService Service for executing download tasks.
-     * @param autoCleanupService Service for auto-cleanup of completed jobs.
+     * @param configsService         Service for managing configurations.
+     * @param executorService        Service for executing download tasks.
+     * @param autoCleanupService     Service for auto-cleanup of completed jobs.
      */
     public DownloaderServiceImpl(DownloadJobRepository downloadJobRepository,
             DownloadTaskRepository downloadTaskRepository, ConfigsService configsService,
@@ -96,23 +96,30 @@ public class DownloaderServiceImpl implements DownloaderService {
      * item, and saves the job. It also triggers the executor service or
      * auto-cleanup service if configured in the selected configuration.
      *
-     * @param items The list of items to be downloaded.
+     * @param items      The list of items to be downloaded.
      * @param configName The name of the configuration to use for the download.
      * @return The created {@link DownloadJob} entity.
      * @throws InvalidRequestException if the provided configuration name is not
-     * found.
+     *                                 found.
      */
     @Override
     @Transactional
     public DownloadJob createDownloadJob(List<DownloadItem> items, String configName) {
+        return createDownloadJob(items, configName, false);
+    }
+
+    @Override
+    @Transactional
+    public DownloadJob createDownloadJob(List<DownloadItem> items, String configName, boolean forceRedownload) {
         // Retrieve the DownloaderConfig to check the startAutomatically flag
         DownloaderConfig activeConfig = configsService.getResolvedConfig(configName);
 
         if (configName != null && !configName.isBlank() && !configName.equals(activeConfig.getName())) {
             throw new InvalidRequestException("Configuration with name '" + configName + "' not found.");
         }
-        logger.info("Received request to create download job for {} items with config '{}'.", items.size(),
-                activeConfig.getName());
+        logger.info("Received request to create download job for {} items with config '{}' (forceRedownload={}).",
+                items.size(),
+                activeConfig.getName(), forceRedownload);
 
         DownloadJob job = new DownloadJob(configName);
 
@@ -122,12 +129,22 @@ public class DownloaderServiceImpl implements DownloaderService {
 
         Set<String> activeVideoIds = downloadTaskRepository.findActiveVideoIds(
                 requestedVideoIds,
-                List.of(TaskStatus.PENDING, TaskStatus.QUEUED, TaskStatus.DOWNLOADING)
-        );
+                List.of(TaskStatus.PENDING, TaskStatus.QUEUED, TaskStatus.DOWNLOADING));
+
+        Set<String> downloadedVideoIds = Set.of();
+        if (!forceRedownload) {
+            downloadedVideoIds = downloadTaskRepository.findActiveVideoIds(
+                    requestedVideoIds,
+                    List.of(TaskStatus.DOWNLOADED));
+        }
 
         for (DownloadItem item : items) {
             if (activeVideoIds.contains(item.getVideoId())) {
-                logger.info("Skipping task creation for videoId: {} because it is already actively processing.", item.getVideoId());
+                logger.info("Skipping task creation for videoId: {} because it is already actively processing.",
+                        item.getVideoId());
+            } else if (!forceRedownload && downloadedVideoIds.contains(item.getVideoId())) {
+                logger.info("Skipping task creation for videoId: {} because it is already downloaded.",
+                        item.getVideoId());
             } else {
                 logger.debug("Creating task for videoId: {}", item.getVideoId());
                 job.addTask(createTaskFromItem(job, item, activeConfig));
@@ -162,14 +179,15 @@ public class DownloaderServiceImpl implements DownloaderService {
     /**
      * Creates a {@link DownloadTask} entity from a {@link DownloadItem} DTO.
      *
-     * @param job The parent download job.
-     * @param item The DTO containing the video details.
+     * @param job    The parent download job.
+     * @param item   The DTO containing the video details.
      * @param config The configuration to determine if audio extraction is
-     * needed.
+     *               needed.
      * @return A new {@link DownloadTask} entity.
      */
     private DownloadTask createTaskFromItem(DownloadJob job, DownloadItem item, DownloaderConfig config) {
-        boolean extractAudio = config.getYtDlpConfig() != null && Boolean.TRUE.equals(config.getYtDlpConfig().getExtractAudio());
+        boolean extractAudio = config.getYtDlpConfig() != null
+                && Boolean.TRUE.equals(config.getYtDlpConfig().getExtractAudio());
         DownloadTask task = DownloadTask.create(job, item.getVideoId(), item.getTitle(), extractAudio);
         task.setThumbnailUrl(item.getThumbnailUrl());
         task.setDescription(item.getDescription());
@@ -194,7 +212,7 @@ public class DownloaderServiceImpl implements DownloaderService {
      *
      * @param jobId The unique identifier of the job.
      * @return A {@link DownloadJobDetails} containing job information and its
-     * tasks.
+     *         tasks.
      * @throws RuntimeException If the job is not found.
      */
     @Override
@@ -210,12 +228,13 @@ public class DownloaderServiceImpl implements DownloaderService {
 
         List<DownloadTaskSummary> taskSummaries = job.getTasks().stream()
                 .map(task -> {
-                    double progress = task.getSubTasks().isEmpty() ? 0.0 : task.getSubTasks().stream()
-                            .mapToDouble(st -> {
-                                Double p = st.getProgress();
-                                return p != null ? p : 0.0;
-                            })
-                            .average().orElse(0.0);
+                    double progress = task.getSubTasks().isEmpty() ? 0.0
+                            : task.getSubTasks().stream()
+                                    .mapToDouble(st -> {
+                                        Double p = st.getProgress();
+                                        return p != null ? p : 0.0;
+                                    })
+                                    .average().orElse(0.0);
                     return new DownloadTaskSummary(task.getId(), task.getStatus(), progress);
                 })
                 .collect(Collectors.toList());
@@ -247,7 +266,8 @@ public class DownloaderServiceImpl implements DownloaderService {
         dto.setDescription(task.getDescription());
         dto.setStatus(task.getStatus());
         dto.setSubTasks(task.getSubTasks().stream()
-                .map(st -> new DownloadSubTaskDetails(st.getId(), st.getType(), st.getStatus(), st.getProgress(), st.getFilePath(), st.getFileSize(), st.getErrorMessage()))
+                .map(st -> new DownloadSubTaskDetails(st.getId(), st.getType(), st.getStatus(), st.getProgress(),
+                        st.getFilePath(), st.getFileSize(), st.getErrorMessage()))
                 .collect(Collectors.toList()));
 
         dto.setCreatedAt(task.getCreatedAt());
