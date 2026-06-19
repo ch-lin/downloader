@@ -58,7 +58,7 @@ import lombok.experimental.SuperBuilder;
     @UniqueConstraint(columnNames = DownloaderConfig.NAME_COLUMN)})
 @Getter
 @EqualsAndHashCode(of = {"name", "enabled", "duration", "startDownloadAutomatically", "removeCompletedJobAutomatically",
-    "clientId", "clientSecret", "threadPoolSize", "maxQueueSize", "ytDlpConfig"}, callSuper = false)
+    "clientId", "clientSecret", "threadPoolSize", "maxQueueSize", "maxDownloadRetries", "ytDlpConfig"}, callSuper = false)
 @SuperBuilder(toBuilder = true)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -124,6 +124,11 @@ public class DownloaderConfig extends AuditableEntity {
      * The name of the maximum queue size column in the database.
      */
     public static final String MAX_QUEUE_SIZE_COLUMN = "max_queue_size";
+
+    /**
+     * The name of the maximum download retries column in the database.
+     */
+    public static final String MAX_DOWNLOAD_RETRIES_COLUMN = "max_download_retries";
 
     /**
      * The name of the yt-dlp config ID column in the database.
@@ -201,6 +206,13 @@ public class DownloaderConfig extends AuditableEntity {
     @Column(name = DownloaderConfig.MAX_QUEUE_SIZE_COLUMN)
     @Setter
     private Integer maxQueueSize;
+
+    /**
+     * The maximum number of retry attempts for downloading a video or audio.
+     */
+    @Column(name = DownloaderConfig.MAX_DOWNLOAD_RETRIES_COLUMN)
+    @Setter
+    private Integer maxDownloadRetries;
 
     /**
      * The associated yt-dlp configuration. This is a one-to-one relationship,

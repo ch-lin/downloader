@@ -62,6 +62,7 @@ class ConfigMapperTest {
         request.setClientSecret("secret");
         request.setThreadPoolSize(5);
         request.setMaxQueueSize(100);
+        request.setMaxDownloadRetries(3);
 
         YtDlpConfigDto ytReq = new YtDlpConfigDto();
         ytReq.setFormatFiltering("best");
@@ -79,6 +80,7 @@ class ConfigMapperTest {
         assertThat(command.getClientSecret()).isEqualTo("secret");
         assertThat(command.getThreadPoolSize()).isEqualTo(5);
         assertThat(command.getMaxQueueSize()).isEqualTo(100);
+        assertThat(command.getMaxDownloadRetries()).isEqualTo(3);
 
         assertThat(command.getYtDlpConfig()).isNotNull();
         assertThat(command.getYtDlpConfig().getFormatFiltering()).isEqualTo("best");
@@ -100,6 +102,7 @@ class ConfigMapperTest {
         request.setClientSecret("secret2");
         request.setThreadPoolSize(10);
         request.setMaxQueueSize(200);
+        request.setMaxDownloadRetries(5);
 
         UpdateConfigCommand command = configMapper.toCommand(request);
 
@@ -112,6 +115,7 @@ class ConfigMapperTest {
         assertThat(command.getClientSecret()).isEqualTo("secret2");
         assertThat(command.getThreadPoolSize()).isEqualTo(10);
         assertThat(command.getMaxQueueSize()).isEqualTo(200);
+        assertThat(command.getMaxDownloadRetries()).isEqualTo(5);
         assertThat(command.getYtDlpConfig()).isNull();
     }
 

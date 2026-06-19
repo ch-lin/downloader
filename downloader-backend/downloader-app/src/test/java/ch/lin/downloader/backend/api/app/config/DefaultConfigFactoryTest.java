@@ -43,6 +43,7 @@ class DefaultConfigFactoryTest {
         properties.setClientSecret("client-secret");
         properties.setThreadPoolSize(5);
         properties.setMaxQueueSize(100);
+        properties.setMaxDownloadRetries(5);
 
         DownloaderDefaultProperties.Ytdlp ytdlpProps = properties.getYtdlp();
         ytdlpProps.setFormatFiltering("best");
@@ -81,6 +82,7 @@ class DefaultConfigFactoryTest {
         assertThat(config.getClientSecret()).isEqualTo("client-secret");
         assertThat(config.getThreadPoolSize()).isEqualTo(5);
         assertThat(config.getMaxQueueSize()).isEqualTo(100);
+        assertThat(config.getMaxDownloadRetries()).isEqualTo(5);
 
         YtDlpConfig ytDlpConfig = config.getYtDlpConfig();
         assertThat(ytDlpConfig).isNotNull();

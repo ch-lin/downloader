@@ -24,9 +24,12 @@
 package ch.lin.downloader.backend.api.app.service;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,9 +38,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ch.lin.downloader.backend.api.app.repository.DownloadJobRepository;
+import ch.lin.downloader.backend.api.app.repository.DownloadTaskRepository;
 import ch.lin.downloader.backend.api.domain.DownloadJob;
+import ch.lin.downloader.backend.api.domain.DownloadTask;
 import ch.lin.downloader.backend.api.domain.DownloaderConfig;
 import ch.lin.downloader.backend.api.domain.JobStatus;
+import ch.lin.downloader.backend.api.domain.TaskStatus;
 import jakarta.annotation.PostConstruct;
 
 /**
@@ -69,6 +75,11 @@ public class AutoCleanupServiceImpl implements AutoCleanupService {
     private final DownloadJobRepository downloadJobRepository;
 
     /**
+     * Repository for accessing download task data.
+     */
+    private final DownloadTaskRepository downloadTaskRepository;
+
+    /**
      * Holds the future of the scheduled cleanup task, allowing it to be
      * managed.
      */
@@ -80,12 +91,14 @@ public class AutoCleanupServiceImpl implements AutoCleanupService {
      * @param configsService Service for retrieving configuration settings.
      * @param taskScheduler Spring's task scheduler.
      * @param downloadJobRepository Repository for download jobs.
+     * @param downloadTaskRepository Repository for download tasks.
      */
     public AutoCleanupServiceImpl(ConfigsService configsService, TaskScheduler taskScheduler,
-            DownloadJobRepository downloadJobRepository) {
+            DownloadJobRepository downloadJobRepository, DownloadTaskRepository downloadTaskRepository) {
         this.configsService = configsService;
         this.taskScheduler = taskScheduler;
         this.downloadJobRepository = downloadJobRepository;
+        this.downloadTaskRepository = downloadTaskRepository;
     }
 
     /**
@@ -142,8 +155,83 @@ public class AutoCleanupServiceImpl implements AutoCleanupService {
     @Transactional
     public void cleanupCompletedJobs() {
         logger.debug("Running cleanup for completed jobs.");
-        List<DownloadJob> completedJobs = downloadJobRepository.findAllByStatus(JobStatus.COMPLETED);
 
+        // 1. Retrieve all FAILED and PARTIALLY_COMPLETED jobs
+        List<DownloadJob> unresolvedJobs = downloadJobRepository.findAllByStatusInWithTasks(
+                List.of(JobStatus.FAILED, JobStatus.PARTIALLY_COMPLETED));
+
+        List<DownloadTask> tasksToDelete = new ArrayList<>();
+        List<DownloadJob> jobsToDelete = new ArrayList<>();
+        List<DownloadJob> jobsToSave = new ArrayList<>();
+
+        if (!unresolvedJobs.isEmpty()) {
+            // Collect all video IDs of failed tasks in these unresolved jobs
+            Set<String> failedVideoIds = unresolvedJobs.stream()
+                    .flatMap(job -> job.getTasks().stream())
+                    .filter(task -> task.getStatus() == TaskStatus.FAILED)
+                    .map(DownloadTask::getVideoId)
+                    .collect(Collectors.toSet());
+
+            if (!failedVideoIds.isEmpty()) {
+                // Find which of these video IDs are successfully DOWNLOADED in any job
+                Set<String> resolvedVideoIds = downloadTaskRepository.findActiveVideoIds(
+                        failedVideoIds, List.of(TaskStatus.DOWNLOADED));
+
+                if (!resolvedVideoIds.isEmpty()) {
+                    for (DownloadJob job : unresolvedJobs) {
+                        List<DownloadTask> resolvedTasks = job.getTasks().stream()
+                                .filter(task -> task.getStatus() == TaskStatus.FAILED
+                                        && resolvedVideoIds.contains(task.getVideoId()))
+                                .collect(Collectors.toList());
+
+                        if (!resolvedTasks.isEmpty()) {
+                            logger.info("Job {} has {} resolved failed tasks to clean up.", job.getId(), resolvedTasks.size());
+                            tasksToDelete.addAll(resolvedTasks);
+                            for (DownloadTask task : resolvedTasks) {
+                                job.getTasks().remove(task);
+                            }
+
+                            // Recalculate remaining status
+                            long remainingFailedTasks = job.getTasks().stream()
+                                    .filter(t -> t.getStatus() == TaskStatus.FAILED).count();
+                            long remainingCompletedTasks = job.getTasks().stream()
+                                    .filter(t -> t.getStatus() == TaskStatus.DOWNLOADED).count();
+
+                            if (remainingFailedTasks == 0) {
+                                logger.info("Job {} has no remaining failed tasks and will be deleted.", job.getId());
+                                jobsToDelete.add(job);
+                            } else {
+                                JobStatus newStatus = remainingCompletedTasks > 0
+                                        ? JobStatus.PARTIALLY_COMPLETED
+                                        : JobStatus.FAILED;
+                                if (job.getStatus() != newStatus) {
+                                    logger.info("Updating Job {} status from {} to {}.", job.getId(), job.getStatus(), newStatus);
+                                    job.setStatus(newStatus);
+                                }
+                                jobsToSave.add(job);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Perform deletions/saves for the unresolved jobs
+        if (!tasksToDelete.isEmpty()) {
+            downloadTaskRepository.deleteAll(tasksToDelete);
+            downloadTaskRepository.flush();
+        }
+
+        if (!jobsToDelete.isEmpty()) {
+            downloadJobRepository.deleteAll(jobsToDelete);
+        }
+
+        if (!jobsToSave.isEmpty()) {
+            downloadJobRepository.saveAll(jobsToSave);
+        }
+
+        // 2. Retrieve all COMPLETED jobs and delete them
+        List<DownloadJob> completedJobs = downloadJobRepository.findAllByStatus(JobStatus.COMPLETED);
         if (!completedJobs.isEmpty()) {
             logger.info("Found {} completed jobs to remove.", completedJobs.size());
             downloadJobRepository.deleteAll(completedJobs);

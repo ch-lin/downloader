@@ -332,12 +332,14 @@ class DownloaderServiceImplTest {
         DownloadJob job = new DownloadJob("default");
         ReflectionTestUtils.setField(job, "id", jobId);
 
-        // Scenario 1: Task has no subtasks (triggers task.getSubTasks().isEmpty() -> 0.0)
+        // Scenario 1: Task has no subtasks (triggers task.getSubTasks().isEmpty() ->
+        // 0.0)
         DownloadTask task1 = DownloadTask.create(job, "vid-1", "Title 1", false);
         task1.getSubTasks().clear();
         job.addTask(task1);
 
-        // Scenario 2: Task has subtasks, but progress is null (triggers p != null ? p : 0.0)
+        // Scenario 2: Task has subtasks, but progress is null (triggers p != null ? p :
+        // 0.0)
         DownloadTask task2 = DownloadTask.create(job, "vid-2", "Title 2", false);
         task2.getSubTask(SubTaskType.VIDEO).setProgress(null);
         job.addTask(task2);
@@ -389,7 +391,8 @@ class DownloaderServiceImplTest {
 
     @Test
     void getTaskById_ShouldCalculateProgressSafely_WhenEmptyOrNull() {
-        // Scenario 1: Task has no subtasks (triggers task.getSubTasks().isEmpty() -> 0.0)
+        // Scenario 1: Task has no subtasks (triggers task.getSubTasks().isEmpty() ->
+        // 0.0)
         DownloadJob job = new DownloadJob("default");
         DownloadTask task1 = DownloadTask.create(job, "vid-1", "Title 1", false);
         ReflectionTestUtils.setField(Objects.requireNonNull(task1), "id", "task-1");
@@ -398,7 +401,8 @@ class DownloaderServiceImplTest {
         when(downloadTaskRepository.findById("task-1")).thenReturn(Optional.of(task1));
         downloaderService.getTaskById("task-1"); // Should not throw exception when calculating progress
 
-        // Scenario 2: Task has subtasks, but progress is null (triggers p != null ? p : 0.0)
+        // Scenario 2: Task has subtasks, but progress is null (triggers p != null ? p :
+        // 0.0)
         DownloadTask task2 = DownloadTask.create(job, "vid-2", "Title 2", false);
         ReflectionTestUtils.setField(Objects.requireNonNull(task2), "id", "task-2");
         task2.getSubTask(SubTaskType.VIDEO).setProgress(null); // Force progress to null
@@ -593,6 +597,82 @@ class DownloaderServiceImplTest {
 
         verify(downloadTaskRepository).delete(taskToDelete);
         verify(downloadJobRepository, never()).save(job);
+    }
+
+    @Test
+    void createDownloadJob_ShouldSkipDownloadedItems_WhenForceRedownloadIsFalse() {
+        String configName = "default";
+        DownloaderConfig config = new DownloaderConfig(configName);
+
+        when(configsService.getResolvedConfig(configName)).thenReturn(config);
+        when(downloadTaskRepository.findActiveVideoIds(anyList(),
+                org.mockito.ArgumentMatchers
+                        .argThat(statuses -> statuses != null && statuses.contains(TaskStatus.PENDING))))
+                .thenReturn(Set.of());
+        when(downloadTaskRepository.findActiveVideoIds(anyList(),
+                org.mockito.ArgumentMatchers
+                        .argThat(statuses -> statuses != null && statuses.contains(TaskStatus.DOWNLOADED))))
+                .thenReturn(Set.of("vid-downloaded"));
+        when(downloadJobRepository.save(Objects.requireNonNull(anyDownloadJob()))).thenAnswer(i -> {
+            DownloadJob job = i.getArgument(0);
+            ReflectionTestUtils.setField(Objects.requireNonNull(job), "id", "job-id");
+            return job;
+        });
+
+        List<DownloadItem> items = new ArrayList<>();
+        DownloadItem item1 = new DownloadItem();
+        item1.setVideoId("vid-downloaded");
+        item1.setTitle("Downloaded Title");
+        items.add(item1);
+
+        DownloadItem item2 = new DownloadItem();
+        item2.setVideoId("vid-new");
+        item2.setTitle("New Title");
+        items.add(item2);
+
+        DownloadJob result = downloaderService.createDownloadJob(items, configName, false);
+
+        assertThat(result.getTasks()).hasSize(1);
+        assertThat(result.getTasks().get(0).getVideoId()).isEqualTo("vid-new");
+        assertThat(result.getStatus()).isEqualTo(JobStatus.PENDING);
+    }
+
+    @Test
+    void createDownloadJob_ShouldCreateTasksForDownloadedItems_WhenForceRedownloadIsTrue() {
+        String configName = "default";
+        DownloaderConfig config = new DownloaderConfig(configName);
+
+        when(configsService.getResolvedConfig(configName)).thenReturn(config);
+        when(downloadTaskRepository.findActiveVideoIds(anyList(),
+                org.mockito.ArgumentMatchers
+                        .argThat(statuses -> statuses != null && statuses.contains(TaskStatus.PENDING))))
+                .thenReturn(Set.of());
+        when(downloadJobRepository.save(Objects.requireNonNull(anyDownloadJob()))).thenAnswer(i -> {
+            DownloadJob job = i.getArgument(0);
+            ReflectionTestUtils.setField(Objects.requireNonNull(job), "id", "job-id");
+            return job;
+        });
+
+        List<DownloadItem> items = new ArrayList<>();
+        DownloadItem item1 = new DownloadItem();
+        item1.setVideoId("vid-downloaded");
+        item1.setTitle("Downloaded Title");
+        items.add(item1);
+
+        DownloadItem item2 = new DownloadItem();
+        item2.setVideoId("vid-new");
+        item2.setTitle("New Title");
+        items.add(item2);
+
+        DownloadJob result = downloaderService.createDownloadJob(items, configName, true);
+
+        assertThat(result.getTasks()).hasSize(2);
+        assertThat(result.getTasks().get(0).getVideoId()).isEqualTo("vid-downloaded");
+        assertThat(result.getTasks().get(1).getVideoId()).isEqualTo("vid-new");
+        assertThat(result.getStatus()).isEqualTo(JobStatus.PENDING);
+
+        verify(downloadTaskRepository, never()).findActiveVideoIds(anyList(), org.mockito.ArgumentMatchers
+                .argThat(statuses -> statuses != null && statuses.contains(TaskStatus.DOWNLOADED)));
     }
 
     private DownloadJob anyDownloadJob() {

@@ -73,14 +73,14 @@ public class DownloaderController {
      * tracking.
      *
      * @param request The request body containing the list of video items to
-     * download.
+     *                download.
      * @return A {@link ResponseEntity} with an HTTP 202 Accepted status and a
-     * body containing an {@link ApiResponse} that wraps a list of
-     * {@link TaskIdentifier} objects.
-     * <p>
-     * Example cURL request:
+     *         body containing an {@link ApiResponse} that wraps a list of
+     *         {@link TaskIdentifier} objects.
+     *         <p>
+     *         Example cURL request:
      *
-     * <pre>
+     *         <pre>
      * {@code
      * curl -X POST http://localhost:8081/download \
      * -H "Content-Type: application/json" \
@@ -100,7 +100,8 @@ public class DownloaderController {
             // return ResponseEntity.badRequest().build();
             throw new InvalidRequestException("Request must contain a non-empty list of items to download.");
         }
-        DownloadJob createdJob = downloadService.createDownloadJob(request.getItems(), request.getConfigName());
+        DownloadJob createdJob = downloadService.createDownloadJob(request.getItems(), request.getConfigName(),
+                request.isForceRedownload());
 
         List<TaskIdentifier> taskIdentifiers = createdJob.getTasks().stream()
                 .map(task -> new TaskIdentifier(task.getVideoId(), task.getId()))
@@ -117,11 +118,11 @@ public class DownloaderController {
      * data.
      *
      * @return A {@link ResponseEntity} with an HTTP 204 No Content status upon
-     * successful deletion.
-     * <p>
-     * Example cURL request:
+     *         successful deletion.
+     *         <p>
+     *         Example cURL request:
      *
-     * <pre>{@code curl -X DELETE http://localhost:8081/download}</pre>
+     *         <pre>{@code curl -X DELETE http://localhost:8081/download}</pre>
      */
     @DeleteMapping
     public ResponseEntity<Void> deleteAllJobs() {

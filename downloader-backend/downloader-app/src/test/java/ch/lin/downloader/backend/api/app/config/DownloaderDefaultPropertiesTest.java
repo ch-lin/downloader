@@ -44,6 +44,7 @@ class DownloaderDefaultPropertiesTest {
         assertEquals(60, properties.getDuration());
         assertEquals(3, properties.getThreadPoolSize());
         assertEquals(50, properties.getMaxQueueSize());
+        assertEquals(3, properties.getMaxDownloadRetries());
         assertTrue(properties.isStartDownloadAutomatically());
         assertFalse(properties.isRemoveCompletedJobAutomatically());
         assertNotNull(properties.getYtdlp());
@@ -83,6 +84,7 @@ class DownloaderDefaultPropertiesTest {
         properties.setClientSecret("client-secret");
         properties.setThreadPoolSize(5);
         properties.setMaxQueueSize(100);
+        properties.setMaxDownloadRetries(5);
 
         assertEquals("/tmp/downloads", properties.getDownloadFolder());
         assertEquals("/tmp/cookies", properties.getNetscapeCookieFolder());
@@ -93,6 +95,7 @@ class DownloaderDefaultPropertiesTest {
         assertEquals("client-secret", properties.getClientSecret());
         assertEquals(5, properties.getThreadPoolSize());
         assertEquals(100, properties.getMaxQueueSize());
+        assertEquals(5, properties.getMaxDownloadRetries());
 
         // Ytdlp setters
         DownloaderDefaultProperties.Ytdlp ytdlp = properties.getYtdlp();

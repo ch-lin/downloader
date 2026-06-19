@@ -84,6 +84,11 @@ public class CreateConfigCommand {
     private Integer maxQueueSize;
 
     /**
+     * The maximum number of retry attempts for downloading a video or audio.
+     */
+    private Integer maxDownloadRetries;
+
+    /**
      * The yt-dlp specific configuration settings.
      */
     private YtDlpConfigCommand ytDlpConfig;

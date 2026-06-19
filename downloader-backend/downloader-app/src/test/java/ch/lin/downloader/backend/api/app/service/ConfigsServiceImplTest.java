@@ -110,6 +110,7 @@ class ConfigsServiceImplTest {
         defaultConfig.setClientId("client-id");
         defaultConfig.setClientSecret("client-secret");
         defaultConfig.setThreadPoolSize(3);
+        defaultConfig.setMaxDownloadRetries(3);
     }
 
     @Test
@@ -482,6 +483,7 @@ class ConfigsServiceImplTest {
         command.setClientSecret("new-client-secret");
         command.setThreadPoolSize(10);
         command.setMaxQueueSize(100);
+        command.setMaxDownloadRetries(5);
 
         YtDlpConfigCommand ytDlpConfigCommand = new YtDlpConfigCommand();
         ytDlpConfigCommand.setFormatFiltering("new-filter");
@@ -526,6 +528,7 @@ class ConfigsServiceImplTest {
         assertThat(result.getClientSecret()).isEqualTo("new-client-secret");
         assertThat(result.getThreadPoolSize()).isEqualTo(10);
         assertThat(result.getMaxQueueSize()).isEqualTo(100);
+        assertThat(result.getMaxDownloadRetries()).isEqualTo(5);
 
         YtDlpConfig resultYtDlp = result.getYtDlpConfig();
         assertThat(resultYtDlp.getFormatFiltering()).isEqualTo("new-filter");
@@ -688,6 +691,7 @@ class ConfigsServiceImplTest {
         assertThat(result.getClientSecret()).isEqualTo(defaultConfig.getClientSecret());
         assertThat(result.getThreadPoolSize()).isEqualTo(defaultConfig.getThreadPoolSize());
         assertThat(result.getMaxQueueSize()).isEqualTo(defaultConfig.getMaxQueueSize());
+        assertThat(result.getMaxDownloadRetries()).isEqualTo(defaultConfig.getMaxDownloadRetries());
 
         YtDlpConfig resultYtDlp = result.getYtDlpConfig();
         YtDlpConfig defaultYtDlp = defaultConfig.getYtDlpConfig();
@@ -739,6 +743,7 @@ class ConfigsServiceImplTest {
         fullConfig.setClientSecret("existing-client-secret");
         fullConfig.setThreadPoolSize(5);
         fullConfig.setMaxQueueSize(100);
+        fullConfig.setMaxDownloadRetries(5);
 
         YtDlpConfig ytDlpConfig = new YtDlpConfig(configName);
         ytDlpConfig.setFormatFiltering("existing-filter");
@@ -775,6 +780,7 @@ class ConfigsServiceImplTest {
         assertThat(result.getClientSecret()).isEqualTo("existing-client-secret");
         assertThat(result.getThreadPoolSize()).isEqualTo(5);
         assertThat(result.getMaxQueueSize()).isEqualTo(100);
+        assertThat(result.getMaxDownloadRetries()).isEqualTo(5);
 
         YtDlpConfig resultYtDlp = result.getYtDlpConfig();
         assertThat(resultYtDlp.getFormatFiltering()).isEqualTo("existing-filter");

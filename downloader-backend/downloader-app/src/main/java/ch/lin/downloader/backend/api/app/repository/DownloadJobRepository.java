@@ -60,7 +60,7 @@ public interface DownloadJobRepository extends JpaRepository<DownloadJob, String
      *
      * @param id The ID of the job to find.
      * @return An {@link Optional} containing the found job with its tasks, or
-     * empty if not found.
+     *         empty if not found.
      */
     @Query("SELECT j FROM DownloadJob j LEFT JOIN FETCH j.tasks WHERE j.id = :id")
     Optional<DownloadJob> findByIdWithTasks(@Param("id") String id);
@@ -70,7 +70,7 @@ public interface DownloadJobRepository extends JpaRepository<DownloadJob, String
      *
      * @param taskId The ID of the task.
      * @return An {@link Optional} containing the parent job, or empty if not
-     * found.
+     *         found.
      */
     @Query("SELECT j FROM DownloadJob j JOIN j.tasks t WHERE t.id = :taskId")
     Optional<DownloadJob> findByTaskId(@Param("taskId") String taskId);
@@ -82,4 +82,16 @@ public interface DownloadJobRepository extends JpaRepository<DownloadJob, String
      * @return A {@link List} of jobs matching the given status.
      */
     List<DownloadJob> findAllByStatus(JobStatus status);
+
+    /**
+     * Finds all {@link DownloadJob} entities with statuses in the given collection,
+     * eagerly fetching their associated
+     * {@link ch.lin.downloader.backend.api.domain.DownloadTask}s.
+     *
+     * @param statuses The collection of statuses to filter by.
+     * @return A {@link List} of jobs matching the given statuses, with tasks
+     *         fetched.
+     */
+    @Query("SELECT DISTINCT j FROM DownloadJob j LEFT JOIN FETCH j.tasks WHERE j.status IN :statuses")
+    List<DownloadJob> findAllByStatusInWithTasks(@Param("statuses") java.util.Collection<JobStatus> statuses);
 }

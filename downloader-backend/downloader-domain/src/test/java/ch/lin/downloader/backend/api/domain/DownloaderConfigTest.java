@@ -39,6 +39,7 @@ class DownloaderConfigTest {
         config.setClientSecret("client-secret");
         config.setThreadPoolSize(5);
         config.setMaxQueueSize(100);
+        config.setMaxDownloadRetries(3);
 
         YtDlpConfig ytDlpConfig = new YtDlpConfig("default");
         config.setYtDlpConfig(ytDlpConfig);
@@ -52,6 +53,7 @@ class DownloaderConfigTest {
         assertThat(config.getClientSecret()).isEqualTo("client-secret");
         assertThat(config.getThreadPoolSize()).isEqualTo(5);
         assertThat(config.getMaxQueueSize()).isEqualTo(100);
+        assertThat(config.getMaxDownloadRetries()).isEqualTo(3);
         assertThat(config.getYtDlpConfig()).isEqualTo(ytDlpConfig);
     }
 

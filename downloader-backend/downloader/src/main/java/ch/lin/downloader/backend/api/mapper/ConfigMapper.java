@@ -49,6 +49,7 @@ public class ConfigMapper {
         command.setClientSecret(request.getClientSecret());
         command.setThreadPoolSize(request.getThreadPoolSize());
         command.setMaxQueueSize(request.getMaxQueueSize());
+        command.setMaxDownloadRetries(request.getMaxDownloadRetries());
         command.setYtDlpConfig(toCommand(request.getYtDlpConfig()));
         return command;
     }
@@ -66,6 +67,7 @@ public class ConfigMapper {
         command.setClientSecret(request.getClientSecret());
         command.setThreadPoolSize(request.getThreadPoolSize());
         command.setMaxQueueSize(request.getMaxQueueSize());
+        command.setMaxDownloadRetries(request.getMaxDownloadRetries());
         command.setYtDlpConfig(toCommand(request.getYtDlpConfig()));
         return command;
     }

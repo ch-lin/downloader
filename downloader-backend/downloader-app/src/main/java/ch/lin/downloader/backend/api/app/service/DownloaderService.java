@@ -43,13 +43,27 @@ public interface DownloaderService {
     /**
      * Creates a new download job and its associated tasks in the database.
      *
-     * @param items The list of items to be downloaded.
-     * @param configName The name of the configuration to use for the download.
+     * @param items           The list of items to be downloaded.
+     * @param configName      The name of the configuration to use for the download.
      * @return The created {@link DownloadJob} entity.
      * @throws ch.lin.platform.exception.InvalidRequestException if the provided
-     * configuration name is not found.
+     *                                                           configuration name
+     *                                                           is not found.
      */
     DownloadJob createDownloadJob(List<DownloadItem> items, String configName);
+
+    /**
+     * Creates a new download job and its associated tasks in the database.
+     *
+     * @param items           The list of items to be downloaded.
+     * @param configName      The name of the configuration to use for the download.
+     * @param forceRedownload Whether to force downloading already completed tasks.
+     * @return The created {@link DownloadJob} entity.
+     * @throws ch.lin.platform.exception.InvalidRequestException if the provided
+     *                                                           configuration name
+     *                                                           is not found.
+     */
+    DownloadJob createDownloadJob(List<DownloadItem> items, String configName, boolean forceRedownload);
 
     /**
      * Deletes all download jobs and their associated tasks from the database.
@@ -61,7 +75,7 @@ public interface DownloaderService {
      *
      * @param jobId The unique identifier of the job.
      * @return A {@link DownloadJobDetails} containing job information and its
-     * tasks.
+     *         tasks.
      */
     DownloadJobDetails getJobById(String jobId);
 

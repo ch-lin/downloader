@@ -46,6 +46,7 @@ public class DownloaderDefaultProperties {
     public static final int DEFAULT_DURATION = 60;
     public static final int DEFAULT_THREAD_POOL_SIZE = 3;
     public static final int DEFAULT_MAX_QUEUE_SIZE = 50;
+    public static final int DEFAULT_MAX_DOWNLOAD_RETRIES = 3;
 
     /**
      * The default directory where downloaded files will be saved.
@@ -94,6 +95,12 @@ public class DownloaderDefaultProperties {
      * The default maximum size of the executor queue.
      */
     private int maxQueueSize = DEFAULT_MAX_QUEUE_SIZE;
+
+    /**
+     * The default maximum number of retry attempts for downloading a video or
+     * audio.
+     */
+    private int maxDownloadRetries = DEFAULT_MAX_DOWNLOAD_RETRIES;
 
     /**
      * Nested configuration for yt-dlp specific options.
