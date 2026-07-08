@@ -124,7 +124,7 @@ public class DownloaderServiceImpl implements DownloaderService {
         DownloadJob job = new DownloadJob(configName);
 
         List<String> requestedVideoIds = items.stream()
-                .map(DownloadItem::getVideoId)
+                .map(item -> item.getVideoId())
                 .collect(Collectors.toList());
 
         Set<String> activeVideoIds = downloadTaskRepository.findActiveVideoIds(
