@@ -105,10 +105,10 @@ public class ConfigsServiceImpl implements ConfigsService {
         }
         List<String> allNames = downloaderConfigRepository.findAll()
                 .stream()
-                .map(DownloaderConfig::getName).collect(Collectors.toList());
+                .map(config -> config.getName()).collect(Collectors.toList());
 
         String enabledConfigName = downloaderConfigRepository.findFirstByEnabledTrue()
-                .map(DownloaderConfig::getName)
+                .map(config -> config.getName())
                 .orElse("default"); // Fallback to 'default' if no config is explicitly enabled
         return new AllConfigsData(enabledConfigName, allNames);
     }

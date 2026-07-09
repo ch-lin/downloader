@@ -329,8 +329,8 @@ public class ExecutorServiceImpl implements ExecutorService {
         } else if (task.getStatus() == TaskStatus.DOWNLOADED) {
             DownloadSubTask videoTask = task.getSubTask(SubTaskType.VIDEO);
             apiClientService.updateItem(task.getVideoId(), task.getId(),
-                    Optional.ofNullable(videoTask).map(DownloadSubTask::getFileSize).orElse(0L),
-                    Optional.ofNullable(videoTask).map(DownloadSubTask::getFilePath).orElse(""),
+                    Optional.ofNullable(videoTask).map(subTask -> subTask.getFileSize()).orElse(0L),
+                    Optional.ofNullable(videoTask).map(subTask -> subTask.getFilePath()).orElse(""),
                     TaskStatus.DOWNLOADED);
         }
         logger.info("Finished processing task {} for video '{}' with status: {}", task.getId(), task.getTitle(),

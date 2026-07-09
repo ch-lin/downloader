@@ -169,7 +169,7 @@ public class AutoCleanupServiceImpl implements AutoCleanupService {
             Set<String> failedVideoIds = unresolvedJobs.stream()
                     .flatMap(job -> job.getTasks().stream())
                     .filter(task -> task.getStatus() == TaskStatus.FAILED)
-                    .map(DownloadTask::getVideoId)
+                    .map(task -> task.getVideoId())
                     .collect(Collectors.toSet());
 
             if (!failedVideoIds.isEmpty()) {
