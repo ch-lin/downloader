@@ -137,7 +137,7 @@ public class DownloadTask extends UuidAuditableEntity {
      * The title of the video.
      */
     @NotNull
-    @Column(name = DownloadTask.TITLE_COLUMN, nullable = false)
+    @Column(name = DownloadTask.TITLE_COLUMN, nullable = false, length = 1024)
     @Setter
     private String title;
 

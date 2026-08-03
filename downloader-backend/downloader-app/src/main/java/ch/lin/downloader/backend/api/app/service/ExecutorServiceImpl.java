@@ -400,13 +400,19 @@ public class ExecutorServiceImpl implements ExecutorService {
 
             logger.info("Starting Audio extraction for video '{}'", task.getVideoId());
             boolean audioSuccess = false;
+            boolean trimFilenames = false;
             for (int attempt = 1; attempt <= maxRetries; attempt++) {
                 if (attempt > 1) {
                     logger.info("Retrying Audio extraction for video '{}' (Attempt {}/{})", task.getVideoId(), attempt, maxRetries);
                 }
-                audioSuccess = executeYtDlpPhase(task, audioSubTask, config, videoDirectory, videoUrl, true, cookiePath, result);
+                audioSuccess = executeYtDlpPhase(task, audioSubTask, config, videoDirectory, videoUrl, true, cookiePath, result, trimFilenames);
                 if (audioSuccess) {
                     break;
+                }
+                if (isFileNameTooLongError(audioSubTask.getErrorMessage())) {
+                    trimFilenames = true;
+                    logger.warn("Audio extraction failed due to filename too long. Retrying with trimmed filenames...");
+                    audioSubTask.setErrorMessage(null);
                 }
                 try {
                     if (attempt < maxRetries) {
@@ -439,13 +445,19 @@ public class ExecutorServiceImpl implements ExecutorService {
 
             logger.info("Starting Video download for video '{}'", task.getVideoId());
             boolean videoSuccess = false;
+            boolean trimFilenames = false;
             for (int attempt = 1; attempt <= maxRetries; attempt++) {
                 if (attempt > 1) {
                     logger.info("Retrying Video download for video '{}' (Attempt {}/{})", task.getVideoId(), attempt, maxRetries);
                 }
-                videoSuccess = executeYtDlpPhase(task, videoSubTask, config, videoDirectory, videoUrl, false, cookiePath, result);
+                videoSuccess = executeYtDlpPhase(task, videoSubTask, config, videoDirectory, videoUrl, false, cookiePath, result, trimFilenames);
                 if (videoSuccess) {
                     break;
+                }
+                if (isFileNameTooLongError(videoSubTask.getErrorMessage())) {
+                    trimFilenames = true;
+                    logger.warn("Video download failed due to filename too long. Retrying with trimmed filenames...");
+                    videoSubTask.setErrorMessage(null);
                 }
                 try {
                     if (attempt < maxRetries) {
@@ -527,7 +539,7 @@ public class ExecutorServiceImpl implements ExecutorService {
         Thread.sleep(ms);
     }
 
-    private List<String> buildCommandForPhase(DownloaderConfig config, String videoUrl, boolean isAudioPhase, Path cookiePath, AtomicReference<Path> tempCookiePathRef, DownloadTask task, DownloadResult result) {
+    private List<String> buildCommandForPhase(DownloaderConfig config, String videoUrl, boolean isAudioPhase, Path cookiePath, AtomicReference<Path> tempCookiePathRef, DownloadTask task, DownloadResult result, boolean trimFilenames) {
         List<String> command = new ArrayList<>();
         command.add("yt-dlp");
         command.add("--impersonate");
@@ -689,15 +701,20 @@ public class ExecutorServiceImpl implements ExecutorService {
             command.add("--write-info-json");
         }
 
+        if (trimFilenames) {
+            command.add("--trim-filenames");
+            command.add("100");
+        }
+
         command.add(videoUrl);
 
         logger.info("Executing command: {}", String.join(" ", command));
         return command;
     }
 
-    private boolean executeYtDlpPhase(DownloadTask task, DownloadSubTask subTask, DownloaderConfig config, Path videoDirectory, String videoUrl, boolean isAudioPhase, Path cookiePath, DownloadResult result) {
+    private boolean executeYtDlpPhase(DownloadTask task, DownloadSubTask subTask, DownloaderConfig config, Path videoDirectory, String videoUrl, boolean isAudioPhase, Path cookiePath, DownloadResult result, boolean trimFilenames) {
         AtomicReference<Path> tempCookiePathRef = new AtomicReference<>();
-        List<String> command = buildCommandForPhase(config, videoUrl, isAudioPhase, cookiePath, tempCookiePathRef, task, result);
+        List<String> command = buildCommandForPhase(config, videoUrl, isAudioPhase, cookiePath, tempCookiePathRef, task, result, trimFilenames);
 
         if (command == null) {
             subTask.setErrorMessage(truncateErrorMessage(result.getErrorMessage()));
@@ -842,7 +859,7 @@ public class ExecutorServiceImpl implements ExecutorService {
                 return true;
             } else {
                 String errorMessage = extractYtDlpError(processOutput.toString(), exitCode);
-                subTask.setErrorMessage(errorMessage);
+                subTask.setErrorMessage(truncateErrorMessage(errorMessage));
                 result.setErrorMessage(errorMessage);
                 logger.error("Failed to download video {} (Phase: {}). yt-dlp exit code: {}. Output:\n{}",
                         task.getVideoId(), isAudioPhase ? "AUDIO" : "VIDEO", exitCode, processOutput);
@@ -889,6 +906,16 @@ public class ExecutorServiceImpl implements ExecutorService {
             processBuilder.directory(directory.toFile());
         }
         return processBuilder.start();
+    }
+
+    private boolean isFileNameTooLongError(String errorMessage) {
+        if (errorMessage == null) {
+            return false;
+        }
+        String lower = errorMessage.toLowerCase();
+        return lower.contains("file name too long")
+                || lower.contains("enametoolong")
+                || lower.contains("errno 36");
     }
 
     /**
