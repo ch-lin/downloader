@@ -172,7 +172,8 @@ class ExecutorServiceImplTest {
 
     @Test
     void init_ShouldHandleExceptionDuringStuckTasksReset() {
-        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.DOWNLOADING)).thenThrow(new RuntimeException("Simulated DB Error"));
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.DOWNLOADING))
+                .thenThrow(new RuntimeException("Simulated DB Error"));
 
         DownloaderConfig config = new DownloaderConfig("default");
         config.setStartDownloadAutomatically(false);
@@ -394,7 +395,8 @@ class ExecutorServiceImplTest {
         job.addTask(task);
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
-        when(configsService.getResolvedConfig(null)).thenReturn(new DownloaderConfig("default")); // For thread pool adjustment
+        when(configsService.getResolvedConfig(null)).thenReturn(new DownloaderConfig("default")); // For thread pool
+                                                                                                  // adjustment
 
         java.util.concurrent.ExecutorService mockExecutor = mock(java.util.concurrent.ExecutorService.class);
         Field executorField = ExecutorServiceImpl.class.getDeclaredField("downloadExecutor");
@@ -557,7 +559,8 @@ class ExecutorServiceImplTest {
     @Test
     void progressTracker_ShouldUpdate_WhenConditionsMet() throws Exception {
         // Using reflection to test private static inner class
-        Class<?> trackerClass = Class.forName("ch.lin.downloader.backend.api.app.service.ExecutorServiceImpl$ProgressTracker");
+        Class<?> trackerClass = Class
+                .forName("ch.lin.downloader.backend.api.app.service.ExecutorServiceImpl$ProgressTracker");
         Constructor<?> constructor = trackerClass.getDeclaredConstructor();
         constructor.setAccessible(true);
         Object tracker = constructor.newInstance();
@@ -609,7 +612,8 @@ class ExecutorServiceImplTest {
 
         // Spy
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
         lenient().doNothing().when(spyService).sleepForRetry(anyLong());
 
@@ -638,10 +642,12 @@ class ExecutorServiceImplTest {
         spyService.processPendingTasks();
 
         // Verify async execution
-        verify(downloadTaskRepository, timeout(5000).atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+        verify(downloadTaskRepository, timeout(5000).atLeastOnce())
+                .save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
 
         // Verify other interactions
-        verify(apiClientService).updateItem(eq("vid-1"), eq("task-1"), anyLong(), contains("video.mp4"), eq(TaskStatus.DOWNLOADED));
+        verify(apiClientService).updateItem(eq("vid-1"), eq("task-1"), anyLong(), contains("video.mp4"),
+                eq(TaskStatus.DOWNLOADED));
 
         // Verify description saved
         assertThat(Files.exists(videoDir.resolve("video (Description).txt"))).isTrue();
@@ -840,7 +846,8 @@ class ExecutorServiceImplTest {
 
         // Spy
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
         lenient().doNothing().when(spyService).sleepForRetry(anyLong());
 
@@ -851,16 +858,16 @@ class ExecutorServiceImplTest {
 
         Process listSubsProcess = mock(Process.class);
         String subsOutput = """
-                            [youtube] Extracting video info
-                               
-                            
-                            [info] Downloading video webpage
-                            [info] Available subtitles for vid-full:
-                            Language Name Formats
-                            en English vtt
-                            """ // isBlank() branch
-                // isBlank() branch
-                ;
+                [youtube] Extracting video info
+
+
+                [info] Downloading video webpage
+                [info] Available subtitles for vid-full:
+                Language Name Formats
+                en English vtt
+                """ // isBlank() branch
+        // isBlank() branch
+        ;
         when(listSubsProcess.getInputStream()).thenReturn(new ByteArrayInputStream(subsOutput.getBytes()));
         when(listSubsProcess.waitFor()).thenReturn(0);
 
@@ -871,17 +878,19 @@ class ExecutorServiceImplTest {
         // Mock startProcess behavior
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
         doReturn(listSubsProcess).when(spyService).startProcess(argThat(list -> list.contains("--list-subs")), any());
-        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> list.contains("https://www.youtube.com/watch?v=vid-full") && !list.contains("--list-subs")), any());
+        doReturn(downloadProcess).when(spyService).startProcess(argThat(
+                list -> list.contains("https://www.youtube.com/watch?v=vid-full") && !list.contains("--list-subs")),
+                any());
 
         // Execute
         spyService.processPendingTasks();
 
         // Verify
-        verify(downloadTaskRepository, timeout(5000).atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+        verify(downloadTaskRepository, timeout(5000).atLeastOnce())
+                .save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
 
         // Verify Audio Phase
-        verify(spyService).startProcess(argThat(list
-                -> list.contains("--cookies")
+        verify(spyService).startProcess(argThat(list -> list.contains("--cookies")
                 && list.stream().anyMatch(s -> s.contains("yt-dlp-cookie-") && s.endsWith(".txt"))
                 && list.contains("--extract-audio")
                 && list.contains("--audio-format") && list.contains("mp3")
@@ -889,18 +898,17 @@ class ExecutorServiceImplTest {
                 && list.contains("--sleep-interval") && list.contains("5")
                 && list.contains("--max-sleep-interval") && list.contains("15")
                 && list.contains("--sleep-subtitles") && list.contains("2")
-                && !list.contains("--write-subs")
-        ), any());
+                && !list.contains("--write-subs")), any());
 
         // Verify Video Phase
-        verify(spyService).startProcess(argThat(list
-                -> list.contains("--cookies")
+        verify(spyService).startProcess(argThat(list -> list.contains("--cookies")
                 && list.stream().anyMatch(s -> s.contains("yt-dlp-cookie-") && s.endsWith(".txt"))
                 && list.contains("-f") && list.contains("best")
                 && list.contains("--format-sort") && list.contains("res:1080")
                 && list.contains("--write-subs")
                 && list.contains("--sub-lang") && list.contains("en")
-                && !list.contains("--write-auto-subs") // New logic: when manual subtitles are present, mutually exclusive with auto-subs
+                && !list.contains("--write-auto-subs") // New logic: when manual subtitles are present, mutually
+                                                       // exclusive with auto-subs
                 && list.contains("--sub-format") && list.contains("srt")
                 && list.contains("-k")
                 && list.contains("-o") && list.contains("%(title)s.%(ext)s")
@@ -908,12 +916,12 @@ class ExecutorServiceImplTest {
                 && list.contains("--sleep-interval") && list.contains("5")
                 && list.contains("--max-sleep-interval") && list.contains("15")
                 && list.contains("--sleep-subtitles") && list.contains("2")
-                && !list.contains("--extract-audio")
-        ), any());
+                && !list.contains("--extract-audio")), any());
     }
 
     @Test
-    void processPendingTasks_ShouldSkipSleepOptions_WhenConfiguredZeroOrNegative(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldSkipSleepOptions_WhenConfiguredZeroOrNegative(@TempDir Path tempDir)
+            throws Exception {
         // Setup Job and Task
         DownloadJob job = new DownloadJob("zero-sleep-config");
         ReflectionTestUtils.setField(job, "id", "job-zero-sleep");
@@ -940,7 +948,8 @@ class ExecutorServiceImplTest {
 
         // Spy
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -962,14 +971,13 @@ class ExecutorServiceImplTest {
         spyService.processPendingTasks();
 
         // Verify
-        verify(downloadTaskRepository, timeout(5000).atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+        verify(downloadTaskRepository, timeout(5000).atLeastOnce())
+                .save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
 
-        verify(spyService).startProcess(argThat(list
-                -> !list.contains("-U")
+        verify(spyService).startProcess(argThat(list -> !list.contains("-U")
                 && !list.contains("--sleep-interval")
                 && !list.contains("--max-sleep-interval")
-                && !list.contains("--sleep-subtitles")
-        ), any());
+                && !list.contains("--sleep-subtitles")), any());
     }
 
     @Test
@@ -1001,7 +1009,8 @@ class ExecutorServiceImplTest {
 
         // Spy
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1017,20 +1026,20 @@ class ExecutorServiceImplTest {
 
         // Mock startProcess
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
-        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> list.contains("https://www.youtube.com/watch?v=vid-remux")), any());
+        doReturn(downloadProcess).when(spyService)
+                .startProcess(argThat(list -> list.contains("https://www.youtube.com/watch?v=vid-remux")), any());
 
         // Execute
         spyService.processPendingTasks();
 
         // Verify
-        verify(downloadTaskRepository, timeout(5000).atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+        verify(downloadTaskRepository, timeout(5000).atLeastOnce())
+                .save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
 
-        verify(spyService).startProcess(argThat(list
-                -> list.contains("--remux-video") && list.contains("mkv")
+        verify(spyService).startProcess(argThat(list -> list.contains("--remux-video") && list.contains("mkv")
                 && list.contains("--no-progress")
                 && list.contains("--no-overwrites")
-                && !list.contains("--cookies")
-        ), any());
+                && !list.contains("--cookies")), any());
     }
 
     @Test
@@ -1056,7 +1065,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-subs")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1069,7 +1079,7 @@ class ExecutorServiceImplTest {
         Process listSubsProcess = mock(Process.class);
         String subsOutput = "[info] Available automatic captions for vid-subs:\nLanguage Name Formats\nko-orig Korean vtt\nja Japanese vtt\nvid-subs has no subtitles\n";
         when(listSubsProcess.getInputStream()).thenReturn(new ByteArrayInputStream(subsOutput.getBytes()));
-        //when(listSubsProcess.waitFor()).thenReturn(0);
+        // when(listSubsProcess.waitFor()).thenReturn(0);
 
         Process downloadProcess = mock(Process.class);
         when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
@@ -1085,20 +1095,21 @@ class ExecutorServiceImplTest {
 
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
 
-        // Verify new logic: when manual subtitles are not found, --write-subs is not added, but --write-auto-subs and --sub-lang with dynamic fallback are added safely
-        verify(spyService).startProcess(argThat(list
-                -> !list.contains("--write-subs")
+        // Verify new logic: when manual subtitles are not found, --write-subs is not
+        // added, but --write-auto-subs and --sub-lang with dynamic fallback are added
+        // safely
+        verify(spyService).startProcess(argThat(list -> !list.contains("--write-subs")
                 && list.contains("--sub-lang")
                 && list.contains("ko-orig")
                 && list.contains("--write-auto-subs")
                 && !list.contains("--list-subs")
                 && !list.contains("-U")
-                && list.contains("https://www.youtube.com/watch?v=vid-subs")
-        ), any());
+                && list.contains("https://www.youtube.com/watch?v=vid-subs")), any());
     }
 
     @Test
-    void processPendingTasks_ShouldAddWriteSubsWithoutLang_WhenLangNotSpecified(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldAddWriteSubsWithoutLang_WhenLangNotSpecified(@TempDir Path tempDir)
+            throws Exception {
         // Setup Job and Task
         DownloadJob job = new DownloadJob("subs-no-lang");
         ReflectionTestUtils.setField(job, "id", "job-subs-no-lang");
@@ -1122,7 +1133,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-subs-no-lang")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1142,19 +1154,18 @@ class ExecutorServiceImplTest {
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
         doReturn(listSubsProcess).when(spyService).startProcess(argThat(list -> list.contains("--list-subs")), any());
-        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> !list.contains("-U") && !list.contains("--list-subs")), any());
+        doReturn(downloadProcess).when(spyService)
+                .startProcess(argThat(list -> !list.contains("-U") && !list.contains("--list-subs")), any());
 
         spyService.processPendingTasks();
 
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
 
-        verify(spyService).startProcess(argThat(list
-                -> list.contains("--write-subs")
+        verify(spyService).startProcess(argThat(list -> list.contains("--write-subs")
                 && !list.contains("--sub-lang")
                 && !list.contains("-U")
                 && !list.contains("--list-subs")
-                && list.contains("https://www.youtube.com/watch?v=vid-subs-no-lang")
-        ), any());
+                && list.contains("https://www.youtube.com/watch?v=vid-subs-no-lang")), any());
     }
 
     @Test
@@ -1182,7 +1193,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-no-subs")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1197,12 +1209,12 @@ class ExecutorServiceImplTest {
         // Execute
         spyService.processPendingTasks();
 
-        // Verify the subtitle check process was NEVER started because wantsManual and wantsAuto are false
+        // Verify the subtitle check process was NEVER started because wantsManual and
+        // wantsAuto are false
         verify(spyService, never()).startProcess(argThat(list -> list.contains("--list-subs")), any());
 
         // Verify no sub flags were added to the final download command
-        verify(spyService).startProcess(argThat(list
-                -> list != null
+        verify(spyService).startProcess(argThat(list -> list != null
                 && !list.contains("--write-subs")
                 && !list.contains("--write-auto-subs")
                 && !list.contains("--sub-lang")
@@ -1213,7 +1225,8 @@ class ExecutorServiceImplTest {
     }
 
     @Test
-    void processPendingTasks_ShouldAddNoSubFlags_WhenAutoSubsWantedButNotAvailable(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldAddNoSubFlags_WhenAutoSubsWantedButNotAvailable(@TempDir Path tempDir)
+            throws Exception {
         // Setup
         DownloadJob job = new DownloadJob("subs-config");
         ReflectionTestUtils.setField(job, "id", "job-subs-no-auto");
@@ -1235,7 +1248,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-subs-no-auto")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1255,19 +1269,26 @@ class ExecutorServiceImplTest {
         when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
         when(downloadProcess.waitFor()).thenReturn(0);
 
-        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("-U")), any());
-        doReturn(listSubsProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("--list-subs")), any());
-        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> list != null && !list.contains("-U") && !list.contains("--list-subs")), any());
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("-U")),
+                any());
+        doReturn(listSubsProcess).when(spyService)
+                .startProcess(argThat(list -> list != null && list.contains("--list-subs")), any());
+        doReturn(downloadProcess).when(spyService).startProcess(
+                argThat(list -> list != null && !list.contains("-U") && !list.contains("--list-subs")), any());
 
         // Execute
         spyService.processPendingTasks();
 
-        // Verify that since no subs were available, no sub flags were added to the command
-        verify(spyService).startProcess(argThat(list -> list != null && !list.contains("-U") && !list.contains("--list-subs") && !list.contains("--write-auto-subs") && !list.contains("--sub-lang")), any());
+        // Verify that since no subs were available, no sub flags were added to the
+        // command
+        verify(spyService)
+                .startProcess(argThat(list -> list != null && !list.contains("-U") && !list.contains("--list-subs")
+                        && !list.contains("--write-auto-subs") && !list.contains("--sub-lang")), any());
     }
 
     @Test
-    void processPendingTasks_ShouldAddAutoSubs_WhenAutoSubsWantedAndAvailable_AndNoSubLang(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldAddAutoSubs_WhenAutoSubsWantedAndAvailable_AndNoSubLang(@TempDir Path tempDir)
+            throws Exception {
         // Setup
         DownloadJob job = new DownloadJob("subs-auto-only");
         ReflectionTestUtils.setField(job, "id", "job-subs-auto-only");
@@ -1278,9 +1299,9 @@ class ExecutorServiceImplTest {
         // Config wants auto subs, no manual, and no sub lang specified
         DownloaderConfig config = new DownloaderConfig("subs-auto-only");
         YtDlpConfig ytDlp = new YtDlpConfig("subs-auto-only");
-        ytDlp.setWriteSubs(false);    // Triggers false branch for `if (wantsManual)`
+        ytDlp.setWriteSubs(false); // Triggers false branch for `if (wantsManual)`
         ytDlp.setWriteAutoSubs(true);
-        ytDlp.setSubLang(null);       // Triggers false branch for `if (hasText(subLang))`
+        ytDlp.setSubLang(null); // Triggers false branch for `if (hasText(subLang))`
         config.setYtDlpConfig(ytDlp);
 
         when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
@@ -1290,7 +1311,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-subs-auto-only")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1309,14 +1331,18 @@ class ExecutorServiceImplTest {
         when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes()));
         when(downloadProcess.waitFor()).thenReturn(0);
 
-        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("-U")), any());
-        doReturn(listSubsProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("--list-subs")), any());
-        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> list != null && !list.contains("-U") && !list.contains("--list-subs")), any());
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("-U")),
+                any());
+        doReturn(listSubsProcess).when(spyService)
+                .startProcess(argThat(list -> list != null && list.contains("--list-subs")), any());
+        doReturn(downloadProcess).when(spyService).startProcess(
+                argThat(list -> list != null && !list.contains("-U") && !list.contains("--list-subs")), any());
 
         // Execute
         spyService.processPendingTasks();
 
-        // Verify that auto subs were added correctly (meaning the false branches were executed successfully)
+        // Verify that auto subs were added correctly (meaning the false branches were
+        // executed successfully)
         verify(spyService).startProcess(argThat(list -> list != null
                 && !list.contains("-U")
                 && !list.contains("--list-subs")
@@ -1352,7 +1378,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-edge")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1363,8 +1390,10 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(0);
 
         Process downloadProcess = mock(Process.class);
-        // Provide output to exercise buffer reading: "line1\nline2" (no trailing newline)
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("line1\nline2\n".getBytes(StandardCharsets.UTF_8)));
+        // Provide output to exercise buffer reading: "line1\nline2" (no trailing
+        // newline)
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream("line1\nline2\n".getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doAnswer(invocation -> {
@@ -1380,22 +1409,18 @@ class ExecutorServiceImplTest {
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
 
         // Verify Audio Phase
-        verify(spyService).startProcess(argThat(list
-                -> list.contains("--extract-audio")
+        verify(spyService).startProcess(argThat(list -> list.contains("--extract-audio")
                 && list.contains("--audio-format") && list.contains("m4a") // Falls back to m4a
                 && !list.contains("--audio-quality")
                 && !list.contains("--remux-video")
                 && !list.contains("--force-overwrites")
-                && !list.contains("--no-overwrites")
-        ), any());
+                && !list.contains("--no-overwrites")), any());
 
         // Verify Video Phase
-        verify(spyService).startProcess(argThat(list
-                -> !list.contains("--extract-audio")
+        verify(spyService).startProcess(argThat(list -> !list.contains("--extract-audio")
                 && list.contains("--remux-video") && list.contains("mp4") // Video phase includes remux
                 && !list.contains("--force-overwrites")
-                && !list.contains("--no-overwrites")
-        ), any());
+                && !list.contains("--no-overwrites")), any());
     }
 
     @Test
@@ -1416,7 +1441,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-missing")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1428,7 +1454,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         // Output indicates a file, but we won't create it on disk
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("[download] Destination: missing.mp4\n".getBytes()));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream("[download] Destination: missing.mp4\n".getBytes()));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doAnswer(invocation -> {
@@ -1441,7 +1468,8 @@ class ExecutorServiceImplTest {
 
         spyService.processPendingTasks();
 
-        // Should still be marked DOWNLOADED because exit code was 0, but filePath will be null
+        // Should still be marked DOWNLOADED because exit code was 0, but filePath will
+        // be null
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
             return t.getStatus() == TaskStatus.DOWNLOADED && (st != null && st.getFilePath() == null);
@@ -1466,7 +1494,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-fail")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1482,7 +1511,8 @@ class ExecutorServiceImplTest {
                 return updateProcess;
             }
             Process downloadProcess = mock(Process.class);
-            when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("ERROR: Something went wrong\n".getBytes()));
+            when(downloadProcess.getInputStream())
+                    .thenReturn(new ByteArrayInputStream("ERROR: Something went wrong\n".getBytes()));
             when(downloadProcess.waitFor()).thenReturn(1); // Exit code 1
             return downloadProcess;
         }).when(spyService).startProcess(any(), any());
@@ -1491,7 +1521,8 @@ class ExecutorServiceImplTest {
 
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null && st.getErrorMessage().contains("ERROR: Something went wrong");
+            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null
+                    && st.getErrorMessage().contains("ERROR: Something went wrong");
         }));
     }
 
@@ -1513,7 +1544,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-io")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1535,7 +1567,8 @@ class ExecutorServiceImplTest {
 
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null && st.getErrorMessage().contains("I/O error");
+            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null
+                    && st.getErrorMessage().contains("I/O error");
         }));
     }
 
@@ -1557,7 +1590,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-int")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1583,7 +1617,8 @@ class ExecutorServiceImplTest {
 
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null && st.getErrorMessage().contains("interrupted");
+            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null
+                    && st.getErrorMessage().contains("interrupted");
         }));
     }
 
@@ -1613,7 +1648,8 @@ class ExecutorServiceImplTest {
 
         // Spy
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1629,18 +1665,18 @@ class ExecutorServiceImplTest {
 
         // Mock startProcess
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
-        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> list.contains("https://www.youtube.com/watch?v=vid-cookie-missing")), any());
+        doReturn(downloadProcess).when(spyService).startProcess(
+                argThat(list -> list.contains("https://www.youtube.com/watch?v=vid-cookie-missing")), any());
 
         // Execute
         spyService.processPendingTasks();
 
         // Verify
-        verify(downloadTaskRepository, timeout(5000).atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+        verify(downloadTaskRepository, timeout(5000).atLeastOnce())
+                .save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
 
         // Verify that --cookies was NOT added because the file was missing
-        verify(spyService).startProcess(argThat(list
-                -> !list.contains("--cookies") && !list.contains("-U")
-        ), any());
+        verify(spyService).startProcess(argThat(list -> !list.contains("--cookies") && !list.contains("-U")), any());
     }
 
     @Test
@@ -1669,7 +1705,8 @@ class ExecutorServiceImplTest {
 
         // Spy
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1682,7 +1719,8 @@ class ExecutorServiceImplTest {
         Process downloadProcess = mock(Process.class);
         // Provide output to exercise the loop in the noProgress block
         String output = "[download] Destination: video_no_progress.mp4\nSome other line";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         // Mock startProcess
@@ -1698,12 +1736,14 @@ class ExecutorServiceImplTest {
         spyService.processPendingTasks();
 
         // Verify
-        verify(downloadTaskRepository, timeout(5000).atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+        verify(downloadTaskRepository, timeout(5000).atLeastOnce())
+                .save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
 
         // Verify that the file path was correctly parsed from the output
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null && st.getFilePath().endsWith("video_no_progress.mp4");
+            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null
+                    && st.getFilePath().endsWith("video_no_progress.mp4");
         }));
     }
 
@@ -1727,7 +1767,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-buffer")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1742,7 +1783,8 @@ class ExecutorServiceImplTest {
         // "\n" -> covers empty line (length > 0 check)
         // "[download] 100%\n" -> covers normal line
         String output = "[download] 10% of 10MB\r[download] Destination: video.mp4\n\n[download] 100% of 10MB\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -1760,7 +1802,8 @@ class ExecutorServiceImplTest {
         // Verify filename was parsed correctly from the line following \r
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null && st.getFilePath().endsWith("video.mp4");
+            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null
+                    && st.getFilePath().endsWith("video.mp4");
         }));
     }
 
@@ -1784,7 +1827,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-exit1")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1796,7 +1840,8 @@ class ExecutorServiceImplTest {
         Process downloadProcess = mock(Process.class);
         // Output provides a filename, so downloadedFile != null
         String output = "[download] Destination: video_exit1.mp4\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(1); // Exit code 1
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -1833,7 +1878,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-exit2")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1845,7 +1891,8 @@ class ExecutorServiceImplTest {
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
         doAnswer(invocation -> {
             Process downloadProcess = mock(Process.class);
-            when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("ERROR: Generic error\n".getBytes()));
+            when(downloadProcess.getInputStream())
+                    .thenReturn(new ByteArrayInputStream("ERROR: Generic error\n".getBytes()));
             when(downloadProcess.waitFor()).thenReturn(2); // Exit code 2
             return downloadProcess;
         }).when(spyService).startProcess(argThat(list -> !list.contains("-U")), any());
@@ -1859,7 +1906,8 @@ class ExecutorServiceImplTest {
     @Test
     void startProcess_ShouldCreateDirectory_WhenDirectoryProvided(@TempDir Path tempDir) {
         Path targetDir = tempDir.resolve("subdir");
-        // Use a command that is unlikely to exist to fail fast, but directory creation happens before start()
+        // Use a command that is unlikely to exist to fail fast, but directory creation
+        // happens before start()
         List<String> command = List.of("non-existent-command-12345");
 
         try {
@@ -1872,7 +1920,8 @@ class ExecutorServiceImplTest {
     }
 
     @Test
-    void processPendingTasks_ShouldUseFallbackErrorMessage_WhenNoErrorLinesFound(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldUseFallbackErrorMessage_WhenNoErrorLinesFound(@TempDir Path tempDir)
+            throws Exception {
         // Setup
         DownloadJob job = new DownloadJob("default");
         ReflectionTestUtils.setField(job, "id", "job-fallback-error");
@@ -1891,7 +1940,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-fallback-error")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1904,7 +1954,8 @@ class ExecutorServiceImplTest {
         doAnswer(invocation -> {
             Process downloadProcess = mock(Process.class);
             String output = "Some generic output\nWARNING: something\n";
-            when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+            when(downloadProcess.getInputStream())
+                    .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
             when(downloadProcess.waitFor()).thenReturn(1); // Exit code 1
             return downloadProcess;
         }).when(spyService).startProcess(argThat(list -> !list.contains("-U")), any());
@@ -1914,7 +1965,8 @@ class ExecutorServiceImplTest {
         // Verify failure with fallback message
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null && st.getErrorMessage().contains("yt-dlp process failed with exit code 1");
+            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null
+                    && st.getErrorMessage().contains("yt-dlp process failed with exit code 1");
         }));
     }
 
@@ -1940,7 +1992,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-subs-fail")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -1960,14 +2013,15 @@ class ExecutorServiceImplTest {
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
         doReturn(listSubsProcess).when(spyService).startProcess(argThat(list -> list.contains("--list-subs")), any());
-        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> !list.contains("-U") && !list.contains("--list-subs")), any());
+        doReturn(downloadProcess).when(spyService)
+                .startProcess(argThat(list -> !list.contains("-U") && !list.contains("--list-subs")), any());
 
         spyService.processPendingTasks();
 
         // Verify that --write-subs was NOT added because check failed
-        verify(spyService).startProcess(argThat(list
-                -> !list.contains("--write-subs") && !list.contains("-U") && !list.contains("--list-subs")
-        ), any());
+        verify(spyService).startProcess(argThat(
+                list -> !list.contains("--write-subs") && !list.contains("-U") && !list.contains("--list-subs")),
+                any());
     }
 
     @Test
@@ -1992,7 +2046,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-subs-ex")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2007,15 +2062,17 @@ class ExecutorServiceImplTest {
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
         // Throw exception when starting list-subs process
-        doThrow(new IOException("Simulated IO Error")).when(spyService).startProcess(argThat(list -> list.contains("--list-subs")), any());
-        doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> !list.contains("-U") && !list.contains("--list-subs")), any());
+        doThrow(new IOException("Simulated IO Error")).when(spyService)
+                .startProcess(argThat(list -> list.contains("--list-subs")), any());
+        doReturn(downloadProcess).when(spyService)
+                .startProcess(argThat(list -> !list.contains("-U") && !list.contains("--list-subs")), any());
 
         spyService.processPendingTasks();
 
         // Verify that --write-subs was NOT added because check failed
-        verify(spyService).startProcess(argThat(list
-                -> !list.contains("--write-subs") && !list.contains("-U") && !list.contains("--list-subs")
-        ), any());
+        verify(spyService).startProcess(argThat(
+                list -> !list.contains("--write-subs") && !list.contains("-U") && !list.contains("--list-subs")),
+                any());
     }
 
     @Test
@@ -2038,7 +2095,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-merger")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2049,7 +2107,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         String output = "[Merger] Merging formats into \"merged_video.mkv\"\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2064,7 +2123,8 @@ class ExecutorServiceImplTest {
 
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null && st.getFilePath().endsWith("merged_video.mkv");
+            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null
+                    && st.getFilePath().endsWith("merged_video.mkv");
         }));
     }
 
@@ -2088,7 +2148,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-already")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2099,7 +2160,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         String output = "[download] existing_video.mp4 has already been downloaded\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2114,7 +2176,8 @@ class ExecutorServiceImplTest {
 
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null && st.getFilePath().endsWith("existing_video.mp4");
+            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null
+                    && st.getFilePath().endsWith("existing_video.mp4");
         }));
     }
 
@@ -2138,7 +2201,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-post")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2148,9 +2212,11 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(0);
 
         Process downloadProcess = mock(Process.class);
-        // Verify that the program ignores metadata logs and correctly captures the actual video filename
+        // Verify that the program ignores metadata logs and correctly captures the
+        // actual video filename
         String output = "[info] Writing video description to: description.txt\n[download] Destination: actual_video.mp4\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2165,13 +2231,15 @@ class ExecutorServiceImplTest {
 
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null && st.getFilePath().endsWith("actual_video.mp4");
+            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null
+                    && st.getFilePath().endsWith("actual_video.mp4");
         }));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {".info.json", ".description", ".vtt", ".srt", ".txt", ".jpg", ".png", ".webp"})
-    void processPendingTasks_ShouldIgnoreMetadataFiles_AndFallbackToDirectoryScan(String extension, @TempDir Path tempDir) throws Exception {
+    @ValueSource(strings = { ".info.json", ".description", ".vtt", ".srt", ".txt", ".jpg", ".png", ".webp" })
+    void processPendingTasks_ShouldIgnoreMetadataFiles_AndFallbackToDirectoryScan(String extension,
+            @TempDir Path tempDir) throws Exception {
         // Setup
         DownloadJob job = new DownloadJob("default");
         ReflectionTestUtils.setField(job, "id", "job-metadata");
@@ -2190,7 +2258,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-metadata")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2201,7 +2270,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         String output = "[download] Destination: video" + extension + "\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2217,7 +2287,8 @@ class ExecutorServiceImplTest {
 
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null && st.getFilePath().endsWith("actual_video.mp4");
+            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null
+                    && st.getFilePath().endsWith("actual_video.mp4");
         }));
     }
 
@@ -2241,7 +2312,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-edge-progress")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2261,7 +2333,8 @@ class ExecutorServiceImplTest {
                 [download]   nan% of 10MB
                 [download]  50.0% of 10MB
                 """;
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2312,7 +2385,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-edge-2")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2325,7 +2399,8 @@ class ExecutorServiceImplTest {
         // 1. Progress with no filename (null check)
         // 2. .webm file (branch coverage)
         // 3. .mkv file (branch coverage)
-        // 4. Invalid number format (catch block) - ".." matches [\d.]+ regex but fails Double.parseDouble
+        // 4. Invalid number format (catch block) - ".." matches [\d.]+ regex but fails
+        // Double.parseDouble
         String output = """
                 [download]  10.0% of 10MB
                 [download] Destination: video.webm
@@ -2335,7 +2410,8 @@ class ExecutorServiceImplTest {
                 [download] Destination: video.mp4
                 [download]  ..% of 10MB
                 """;
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2387,7 +2463,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-empty-filename")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2398,12 +2475,14 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         // 1. Destination line with empty filename (trailing space preserved by \s)
-        // 2. Progress line (should be ignored because filename is empty -> isVideoFile is false)
+        // 2. Progress line (should be ignored because filename is empty -> isVideoFile
+        // is false)
         String output = """
                 [download] Destination:\s
                 [download]  50.0% of 10MB
                 """;
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2444,7 +2523,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-throttle")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2463,7 +2543,8 @@ class ExecutorServiceImplTest {
                 [download]  11.0% of 10MB
                 [download]  16.0% of 10MB
                 """;
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2512,7 +2593,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-no-ext")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2523,7 +2605,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         String output = "[download] Destination: video_no_ext\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2539,10 +2622,12 @@ class ExecutorServiceImplTest {
         // Verify success
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null && st.getFilePath().endsWith("video_no_ext");
+            return t.getStatus() == TaskStatus.DOWNLOADED && st != null && st.getFilePath() != null
+                    && st.getFilePath().endsWith("video_no_ext");
         }));
 
-        // Verify description file exists with correct name (base filename + " (Description).txt")
+        // Verify description file exists with correct name (base filename + "
+        // (Description).txt")
         assertThat(Files.exists(videoDir.resolve("video_no_ext (Description).txt"))).isTrue();
     }
 
@@ -2567,7 +2652,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-no-thumb")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2578,7 +2664,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         String output = "[download] Destination: video.mp4\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2623,7 +2710,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-thumb-ext")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2634,7 +2722,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         String output = "[download] Destination: video.mp4\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2679,7 +2768,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-thumb-fail")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2690,7 +2780,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         String output = "[download] Destination: video.mp4\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2711,7 +2802,8 @@ class ExecutorServiceImplTest {
     }
 
     @Test
-    void processPendingTasks_ShouldUseDefaultThumbnailExtension_WhenUrlHasNoExtension(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldUseDefaultThumbnailExtension_WhenUrlHasNoExtension(@TempDir Path tempDir)
+            throws Exception {
         // Setup source thumbnail file without extension
         Path sourceThumb = tempDir.resolve("source_no_ext");
         Files.writeString(sourceThumb, "fake image content");
@@ -2735,7 +2827,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-thumb-no-ext")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2746,7 +2839,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         String output = "[download] Destination: video.mp4\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2769,7 +2863,8 @@ class ExecutorServiceImplTest {
     }
 
     @Test
-    void processPendingTasks_ShouldUseDefaultThumbnailExtension_WhenDotIsBeforeLastSlash(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldUseDefaultThumbnailExtension_WhenDotIsBeforeLastSlash(@TempDir Path tempDir)
+            throws Exception {
         // Setup source thumbnail file in a directory with a dot
         Path folderWithDot = tempDir.resolve("folder.with.dot");
         Files.createDirectories(folderWithDot);
@@ -2795,7 +2890,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-dot-path")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2806,7 +2902,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         String output = "[download] Destination: video.mp4\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2849,7 +2946,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-desc-fail")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2860,7 +2958,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         String output = "[download] Destination: video.mp4\n";
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2900,7 +2999,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-update-int")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2911,7 +3011,8 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenThrow(new InterruptedException("Simulated Interrupt"));
 
         Process downloadProcess = mock(Process.class);
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("[download] Destination: video.mp4\n".getBytes()));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream("[download] Destination: video.mp4\n".getBytes()));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -2947,7 +3048,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-update-fail")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -2958,7 +3060,8 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(1);
 
         Process downloadProcess = mock(Process.class);
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("[download] Destination: video.mp4\n".getBytes()));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream("[download] Destination: video.mp4\n".getBytes()));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -3000,7 +3103,8 @@ class ExecutorServiceImplTest {
 
         // Spy
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3012,7 +3116,8 @@ class ExecutorServiceImplTest {
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
 
         // Mock Files using MockedStatic to trigger IOExceptions
-        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS)) {
             mockedFiles.when(() -> Files.copy(any(Path.class), any(Path.class), any(java.nio.file.CopyOption[].class)))
                     .thenThrow(new IOException("Simulated copy failure"));
             mockedFiles.when(() -> Files.deleteIfExists(any(Path.class)))
@@ -3025,7 +3130,8 @@ class ExecutorServiceImplTest {
         // Verify task failed and message is properly set
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null && st.getErrorMessage().contains("Failed to create temporary cookie file");
+            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null
+                    && st.getErrorMessage().contains("Failed to create temporary cookie file");
         }));
     }
 
@@ -3054,7 +3160,8 @@ class ExecutorServiceImplTest {
         Files.writeString(cookiePath, "cookie-content");
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3065,20 +3172,24 @@ class ExecutorServiceImplTest {
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
 
         // Force an execution error to quickly hit the finally block
-        doThrow(new IOException("Simulated IO Error")).when(spyService).startProcess(argThat(list -> !list.contains("-U")), any());
+        doThrow(new IOException("Simulated IO Error")).when(spyService)
+                .startProcess(argThat(list -> !list.contains("-U")), any());
 
         // Mock Files to fail ONLY on delete, this hits the finally block catch exactly
-        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS)) {
             mockedFiles.when(() -> Files.deleteIfExists(any(Path.class)))
                     .thenThrow(new IOException("Simulated delete failure in finally"));
 
             spyService.processPendingTasks();
         }
 
-        // Verify task failed with our simulated execution IO Error, showing that finally block executed cleanly.
+        // Verify task failed with our simulated execution IO Error, showing that
+        // finally block executed cleanly.
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null && st.getErrorMessage().contains("I/O error during download: Simulated IO Error");
+            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null
+                    && st.getErrorMessage().contains("I/O error during download: Simulated IO Error");
         }));
     }
 
@@ -3111,7 +3222,8 @@ class ExecutorServiceImplTest {
 
         // Spy
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3123,8 +3235,12 @@ class ExecutorServiceImplTest {
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
 
         // Mock Files using MockedStatic to trigger IOExceptions
-        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
-            mockedFiles.when(() -> Files.createTempFile(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(java.nio.file.attribute.FileAttribute[].class)))
+        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            mockedFiles
+                    .when(() -> Files.createTempFile(org.mockito.ArgumentMatchers.anyString(),
+                            org.mockito.ArgumentMatchers.anyString(),
+                            org.mockito.ArgumentMatchers.any(java.nio.file.attribute.FileAttribute[].class)))
                     .thenThrow(new IOException("Simulated createTempFile failure"));
 
             // Execute
@@ -3134,7 +3250,8 @@ class ExecutorServiceImplTest {
         // Verify task failed and message is properly set
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null && st.getErrorMessage().contains("Failed to create temporary cookie file");
+            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null
+                    && st.getErrorMessage().contains("Failed to create temporary cookie file");
         }));
     }
 
@@ -3167,7 +3284,8 @@ class ExecutorServiceImplTest {
 
         // Spy
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3179,10 +3297,12 @@ class ExecutorServiceImplTest {
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
 
         // Mock Files using MockedStatic to trigger IOExceptions
-        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS)) {
             mockedFiles.when(() -> Files.copy(any(Path.class), any(Path.class), any(java.nio.file.CopyOption[].class)))
                     .thenThrow(new IOException("Simulated copy failure"));
-            // Do not throw exception for deleteIfExists, allowing it to proceed with the normal successful delete logic and cover lines without exceptions
+            // Do not throw exception for deleteIfExists, allowing it to proceed with the
+            // normal successful delete logic and cover lines without exceptions
 
             // Execute
             spyService.processPendingTasks();
@@ -3191,7 +3311,8 @@ class ExecutorServiceImplTest {
         // Verify task failed and message is properly set
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
-            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null && st.getErrorMessage().contains("Failed to create temporary cookie file");
+            return t.getStatus() == TaskStatus.FAILED && st != null && st.getErrorMessage() != null
+                    && st.getErrorMessage().contains("Failed to create temporary cookie file");
         }));
     }
 
@@ -3232,7 +3353,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-audio-fail")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3244,7 +3366,8 @@ class ExecutorServiceImplTest {
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
         doAnswer(invocation -> {
             Process audioProcess = mock(Process.class);
-            when(audioProcess.getInputStream()).thenReturn(new ByteArrayInputStream("ERROR: Audio extraction failed\n".getBytes()));
+            when(audioProcess.getInputStream())
+                    .thenReturn(new ByteArrayInputStream("ERROR: Audio extraction failed\n".getBytes()));
             when(audioProcess.waitFor()).thenReturn(1); // Non-zero exit code to fail audio phase
             return audioProcess;
         }).when(spyService).startProcess(argThat(list -> list.contains("--extract-audio")), any());
@@ -3258,11 +3381,13 @@ class ExecutorServiceImplTest {
         }));
 
         // Verify that video phase was never started
-        verify(spyService, never()).startProcess(argThat(list -> !list.contains("-U") && !list.contains("--extract-audio")), any());
+        verify(spyService, never())
+                .startProcess(argThat(list -> !list.contains("-U") && !list.contains("--extract-audio")), any());
     }
 
     @Test
-    void processPendingTasks_ShouldHandleInterruptedException_DuringAudioRetrySleep(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldHandleInterruptedException_DuringAudioRetrySleep(@TempDir Path tempDir)
+            throws Exception {
         // Setup
         DownloadJob job = new DownloadJob("default");
         ReflectionTestUtils.setField(job, "id", "job-audio-retry-int");
@@ -3283,7 +3408,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-audio-retry-int")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3298,7 +3424,8 @@ class ExecutorServiceImplTest {
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
         doAnswer(invocation -> {
             Process audioProcess = mock(Process.class);
-            when(audioProcess.getInputStream()).thenReturn(new ByteArrayInputStream("ERROR: Audio extraction failed\n".getBytes()));
+            when(audioProcess.getInputStream())
+                    .thenReturn(new ByteArrayInputStream("ERROR: Audio extraction failed\n".getBytes()));
             when(audioProcess.waitFor()).thenReturn(1); // Non-zero exit code to fail audio phase
             return audioProcess;
         }).when(spyService).startProcess(argThat(list -> list.contains("--extract-audio")), any());
@@ -3314,7 +3441,8 @@ class ExecutorServiceImplTest {
     }
 
     @Test
-    void processPendingTasks_ShouldHandleInterruptedException_DuringVideoRetrySleep(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldHandleInterruptedException_DuringVideoRetrySleep(@TempDir Path tempDir)
+            throws Exception {
         // Setup
         DownloadJob job = new DownloadJob("default");
         ReflectionTestUtils.setField(job, "id", "job-video-retry-int");
@@ -3333,7 +3461,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-video-retry-int")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3348,7 +3477,8 @@ class ExecutorServiceImplTest {
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
         doAnswer(invocation -> {
             Process downloadProcess = mock(Process.class);
-            when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("ERROR: Generic error\n".getBytes()));
+            when(downloadProcess.getInputStream())
+                    .thenReturn(new ByteArrayInputStream("ERROR: Generic error\n".getBytes()));
             when(downloadProcess.waitFor()).thenReturn(2); // Exit code 2 to fail video phase
             return downloadProcess;
         }).when(spyService).startProcess(argThat(list -> !list.contains("-U")), any());
@@ -3383,7 +3513,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-no-video")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3396,8 +3527,10 @@ class ExecutorServiceImplTest {
 
         spyService.processPendingTasks();
 
-        // Since both audio and video subtasks are null, executeDownload returns success immediately.
-        // Task status will end up as PENDING because it has no subtasks to determine completeness.
+        // Since both audio and video subtasks are null, executeDownload returns success
+        // immediately.
+        // Task status will end up as PENDING because it has no subtasks to determine
+        // completeness.
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.PENDING));
 
         // Ensure yt-dlp was not started for downloading
@@ -3429,7 +3562,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-audio-ext")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3439,8 +3573,10 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(0);
 
         Process audioProcess = mock(Process.class);
-        // Provide destinations with .m4a, .webm, .mp3, .opus, and .wav (to test the false branch)
-        // Note: Using increments of 10% ensures the 5% threshold logic in ProgressTracker allows the update.
+        // Provide destinations with .m4a, .webm, .mp3, .opus, and .wav (to test the
+        // false branch)
+        // Note: Using increments of 10% ensures the 5% threshold logic in
+        // ProgressTracker allows the update.
         String output = """
                 [download] Destination: audio.m4a
                 [download]  15.0% of 10MB
@@ -3453,7 +3589,8 @@ class ExecutorServiceImplTest {
                 [download] Destination: audio.wav
                 [download]  55.0% of 10MB
                 """;
-        when(audioProcess.getInputStream()).thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
+        when(audioProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream(output.getBytes(StandardCharsets.UTF_8)));
         when(audioProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -3473,7 +3610,8 @@ class ExecutorServiceImplTest {
         spyService.processPendingTasks();
 
         // 15.0 (.m4a), 25.0 (.webm), 35.0 (.mp3), 45.0 (.opus) should be saved
-        // 55.0 (.wav) is NOT in the target extension list, so it should be ignored (isTargetFile = false)
+        // 55.0 (.wav) is NOT in the target extension list, so it should be ignored
+        // (isTargetFile = false)
         assertThat(savedProgress).contains(15.0, 25.0, 35.0, 45.0);
         assertThat(savedProgress).doesNotContain(55.0);
     }
@@ -3498,7 +3636,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-fallback-video")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3506,7 +3645,8 @@ class ExecutorServiceImplTest {
         Path videoDir = tempDir.resolve("Fallback Video [vid-fallback-video]");
         Files.createDirectories(videoDir);
 
-        // Create a file BEFORE the download process starts. This should be ignored by the fallback scan.
+        // Create a file BEFORE the download process starts. This should be ignored by
+        // the fallback scan.
         Path oldFile = videoDir.resolve("old_video.mp4");
         Files.writeString(oldFile, "12345678901234567890"); // size 20
 
@@ -3516,7 +3656,8 @@ class ExecutorServiceImplTest {
 
         Process downloadProcess = mock(Process.class);
         // Simulate yt-dlp outputting NO recognizable filename
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("Some unexpected log formatting\n".getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream()).thenReturn(
+                new ByteArrayInputStream("Some unexpected log formatting\n".getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -3571,7 +3712,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-fallback-audio")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3584,11 +3726,13 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(0);
 
         Process audioProcess = mock(Process.class);
-        when(audioProcess.getInputStream()).thenReturn(new ByteArrayInputStream("No audio dest parsed\n".getBytes(StandardCharsets.UTF_8)));
+        when(audioProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream("No audio dest parsed\n".getBytes(StandardCharsets.UTF_8)));
         when(audioProcess.waitFor()).thenReturn(0);
 
         Process videoProcess = mock(Process.class);
-        when(videoProcess.getInputStream()).thenReturn(new ByteArrayInputStream("No video dest parsed\n".getBytes(StandardCharsets.UTF_8)));
+        when(videoProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream("No video dest parsed\n".getBytes(StandardCharsets.UTF_8)));
         when(videoProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
@@ -3603,7 +3747,8 @@ class ExecutorServiceImplTest {
             Path largeVideo = videoDir.resolve("new_video.mp4");
             Files.writeString(largeVideo, "1234567890"); // size 10
             return videoProcess;
-        }).when(spyService).startProcess(argThat(list -> !list.contains("-U") && !list.contains("--extract-audio")), any());
+        }).when(spyService).startProcess(argThat(list -> !list.contains("-U") && !list.contains("--extract-audio")),
+                any());
 
         spyService.processPendingTasks();
 
@@ -3637,7 +3782,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-scan-ioex")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3650,20 +3796,23 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(0);
 
         Process downloadProcess = mock(Process.class);
-        when(downloadProcess.getInputStream()).thenReturn(new ByteArrayInputStream("".getBytes(StandardCharsets.UTF_8)));
+        when(downloadProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream("".getBytes(StandardCharsets.UTF_8)));
         when(downloadProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
         doReturn(downloadProcess).when(spyService).startProcess(argThat(list -> !list.contains("-U")), any());
 
-        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+        try (org.mockito.MockedStatic<Files> mockedFiles = org.mockito.Mockito.mockStatic(Files.class,
+                org.mockito.Mockito.CALLS_REAL_METHODS)) {
             mockedFiles.when(() -> Files.list(eq(videoDir)))
                     .thenThrow(new IOException("Simulated directory scan error"));
 
             spyService.processPendingTasks();
         }
 
-        // Verify task completed with warnings because the scan threw exception and no fallback was found
+        // Verify task completed with warnings because the scan threw exception and no
+        // fallback was found
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> {
             DownloadSubTask st = t.getSubTask(SubTaskType.VIDEO);
             return t.getStatus() == TaskStatus.DOWNLOADED
@@ -3689,7 +3838,8 @@ class ExecutorServiceImplTest {
         when(configsService.getResolvedConfig("default")).thenThrow(new RuntimeException("Simulated config error"));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3704,7 +3854,8 @@ class ExecutorServiceImplTest {
 
         spyService.processPendingTasks();
 
-        // Verify the outer catch handled it, saved the task as FAILED, and updated the Job status
+        // Verify the outer catch handled it, saved the task as FAILED, and updated the
+        // Job status
         verify(downloadTaskRepository, atLeastOnce()).save(argThat(t -> t.getStatus() == TaskStatus.FAILED));
         verify(apiClientService).updateItemStatus(eq("vid-ex-true"), eq("task-ex-true"), eq(TaskStatus.FAILED));
         verify(downloadJobRepository).findByIdWithTasks("job-ex-true");
@@ -3720,7 +3871,8 @@ class ExecutorServiceImplTest {
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3752,7 +3904,8 @@ class ExecutorServiceImplTest {
         when(configsService.getResolvedConfig(null)).thenReturn(config);
 
         // Trigger outer catch
-        when(configsService.getResolvedConfig("default")).thenThrow(new RuntimeException("Simulated execution failure"));
+        when(configsService.getResolvedConfig("default"))
+                .thenThrow(new RuntimeException("Simulated execution failure"));
 
         // Trigger inner catch by failing the save operation
         doAnswer(invocation -> {
@@ -3764,7 +3917,8 @@ class ExecutorServiceImplTest {
         }).when(downloadTaskRepository).save(any(DownloadTask.class));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3777,13 +3931,15 @@ class ExecutorServiceImplTest {
         // Execute (should log the error but not crash the thread)
         spyService.processPendingTasks();
 
-        // apiClientService won't be called because the exception was thrown in the preceding save() step
+        // apiClientService won't be called because the exception was thrown in the
+        // preceding save() step
         verify(downloadTaskRepository, atLeastOnce()).save(any(DownloadTask.class));
         verify(apiClientService, never()).updateItemStatus(any(), any(), eq(TaskStatus.FAILED));
     }
 
     @Test
-    void processPendingTasks_ShouldUseDefaultAudioTemplate_WhenVideoAttributesPresent(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldUseDefaultAudioTemplate_WhenVideoAttributesPresent(@TempDir Path tempDir)
+            throws Exception {
         // Setup Job and Task
         DownloadJob job = new DownloadJob("audio-template-config");
         ReflectionTestUtils.setField(job, "id", "job-audio-template");
@@ -3795,7 +3951,8 @@ class ExecutorServiceImplTest {
         DownloaderConfig config = new DownloaderConfig("audio-template-config");
         YtDlpConfig ytDlp = new YtDlpConfig("audio-template-config");
         ytDlp.setExtractAudio(true);
-        // Include video-specific attributes %(height) and %(fps) to trigger the fallback branch
+        // Include video-specific attributes %(height) and %(fps) to trigger the
+        // fallback branch
         ytDlp.setOutputTemplate("%(title)s_%(height)s_%(fps)s.%(ext)s");
         config.setYtDlpConfig(ytDlp);
 
@@ -3809,7 +3966,8 @@ class ExecutorServiceImplTest {
 
         // Spy
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3825,23 +3983,20 @@ class ExecutorServiceImplTest {
         spyService.processPendingTasks();
 
         // Verify Audio Phase command used the fallback template
-        verify(spyService).startProcess(argThat(list
-                -> list.contains("--extract-audio")
+        verify(spyService).startProcess(argThat(list -> list.contains("--extract-audio")
                 && list.contains("-o")
                 && list.contains("%(title)s.%(ext)s")
-                && !list.contains("%(title)s_%(height)s_%(fps)s.%(ext)s")
-        ), any());
+                && !list.contains("%(title)s_%(height)s_%(fps)s.%(ext)s")), any());
 
         // Verify Video Phase command used the original template
-        verify(spyService).startProcess(argThat(list
-                -> !list.contains("--extract-audio") && !list.contains("-U")
+        verify(spyService).startProcess(argThat(list -> !list.contains("--extract-audio") && !list.contains("-U")
                 && list.contains("-o")
-                && list.contains("%(title)s_%(height)s_%(fps)s.%(ext)s")
-        ), any());
+                && list.contains("%(title)s_%(height)s_%(fps)s.%(ext)s")), any());
     }
 
     @Test
-    void processPendingTasks_ShouldUseDefaultAudioTemplate_WhenFpsAttributePresent(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldUseDefaultAudioTemplate_WhenFpsAttributePresent(@TempDir Path tempDir)
+            throws Exception {
         // Setup Job and Task
         DownloadJob job = new DownloadJob("audio-fps-config");
         ReflectionTestUtils.setField(job, "id", "job-audio-fps");
@@ -3866,7 +4021,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-audio-fps")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3879,16 +4035,15 @@ class ExecutorServiceImplTest {
 
         spyService.processPendingTasks();
 
-        verify(spyService).startProcess(argThat(list
-                -> list.contains("--extract-audio")
+        verify(spyService).startProcess(argThat(list -> list.contains("--extract-audio")
                 && list.contains("-o")
                 && list.contains("%(title)s.%(ext)s")
-                && !list.contains("%(title)s_%(fps)s.%(ext)s")
-        ), any());
+                && !list.contains("%(title)s_%(fps)s.%(ext)s")), any());
     }
 
     @Test
-    void processPendingTasks_ShouldUseDefaultAudioTemplate_WhenResolutionAttributePresent(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldUseDefaultAudioTemplate_WhenResolutionAttributePresent(@TempDir Path tempDir)
+            throws Exception {
         // Setup Job and Task
         DownloadJob job = new DownloadJob("audio-res-config");
         ReflectionTestUtils.setField(job, "id", "job-audio-res");
@@ -3913,7 +4068,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-audio-res")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3926,16 +4082,15 @@ class ExecutorServiceImplTest {
 
         spyService.processPendingTasks();
 
-        verify(spyService).startProcess(argThat(list
-                -> list.contains("--extract-audio")
+        verify(spyService).startProcess(argThat(list -> list.contains("--extract-audio")
                 && list.contains("-o")
                 && list.contains("%(title)s.%(ext)s")
-                && !list.contains("%(title)s_%(resolution)s.%(ext)s")
-        ), any());
+                && !list.contains("%(title)s_%(resolution)s.%(ext)s")), any());
     }
 
     @Test
-    void processPendingTasks_ShouldUseFallbackDirectoryScan_ForAudio_MultipleFiles(@TempDir Path tempDir) throws Exception {
+    void processPendingTasks_ShouldUseFallbackDirectoryScan_ForAudio_MultipleFiles(@TempDir Path tempDir)
+            throws Exception {
         // Setup
         DownloadJob job = new DownloadJob("default");
         ReflectionTestUtils.setField(job, "id", "job-fallback-audio-multi");
@@ -3956,7 +4111,8 @@ class ExecutorServiceImplTest {
         when(downloadJobRepository.findByIdWithTasks("job-fallback-audio-multi")).thenReturn(Optional.of(job));
 
         ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
-                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService, taskScheduler)
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
                 .defaultAnswer(CALLS_REAL_METHODS));
 
         injectSynchronousExecutor(spyService);
@@ -3969,18 +4125,21 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(0);
 
         Process audioProcess = mock(Process.class);
-        when(audioProcess.getInputStream()).thenReturn(new ByteArrayInputStream("No audio dest parsed\n".getBytes(StandardCharsets.UTF_8)));
+        when(audioProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream("No audio dest parsed\n".getBytes(StandardCharsets.UTF_8)));
         when(audioProcess.waitFor()).thenReturn(0);
 
         Process videoProcess = mock(Process.class);
-        when(videoProcess.getInputStream()).thenReturn(new ByteArrayInputStream("No video dest parsed\n".getBytes(StandardCharsets.UTF_8)));
+        when(videoProcess.getInputStream())
+                .thenReturn(new ByteArrayInputStream("No video dest parsed\n".getBytes(StandardCharsets.UTF_8)));
         when(videoProcess.waitFor()).thenReturn(0);
 
         doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
 
         doAnswer(invocation -> {
             // Create multiple audio files to hit `size > maxSize` false branch,
-            // and include `.webm` to hit the `lowerName.endsWith(".webm")` branch for audio fallback.
+            // and include `.webm` to hit the `lowerName.endsWith(".webm")` branch for audio
+            // fallback.
             Files.writeString(videoDir.resolve("audio_10.m4a"), "1234567890"); // size 10
             Files.writeString(videoDir.resolve("audio_5.m4a"), "12345"); // size 5
             Files.writeString(videoDir.resolve("audio_8.webm"), "12345678"); // size 8
@@ -3993,7 +4152,8 @@ class ExecutorServiceImplTest {
             Files.writeString(videoDir.resolve("video_10.mp4"), "1234567890"); // size 10
             Files.writeString(videoDir.resolve("video_5.mp4"), "12345"); // size 5
             return videoProcess;
-        }).when(spyService).startProcess(argThat(list -> !list.contains("-U") && !list.contains("--extract-audio")), any());
+        }).when(spyService).startProcess(argThat(list -> !list.contains("-U") && !list.contains("--extract-audio")),
+                any());
 
         spyService.processPendingTasks();
 
@@ -4038,7 +4198,8 @@ class ExecutorServiceImplTest {
     @Test
     void calculateRetryBackoffMs_ShouldHandleVariousConfigurations() {
         // 1. config is null
-        Long resultNull = ReflectionTestUtils.invokeMethod(executorService, "calculateRetryBackoffMs", (DownloaderConfig) null);
+        Long resultNull = ReflectionTestUtils.invokeMethod(executorService, "calculateRetryBackoffMs",
+                (DownloaderConfig) null);
         assertThat(resultNull).isEqualTo(2000L);
 
         // 2. ytDlpConfig is null
@@ -4061,7 +4222,8 @@ class ExecutorServiceImplTest {
         // 4. maxSleepSec < minMs (should return minMs)
         ytDlp.setSleepInterval(5); // minMs = 5000
         ytDlp.setMaxSleepInterval(3); // maxMs = 3000
-        Long resultMaxLessThanMin = ReflectionTestUtils.invokeMethod(executorService, "calculateRetryBackoffMs", config);
+        Long resultMaxLessThanMin = ReflectionTestUtils.invokeMethod(executorService, "calculateRetryBackoffMs",
+                config);
         assertThat(resultMaxLessThanMin).isEqualTo(5000L);
 
         // 5. maxSleepSec == minMs
@@ -4074,7 +4236,8 @@ class ExecutorServiceImplTest {
         Long resultRandom = ReflectionTestUtils.invokeMethod(executorService, "calculateRetryBackoffMs", config);
         assertThat(resultRandom).isBetween(5000L, 10000L);
 
-        // 7. maxSleepSec is 0 (test maxSleepSec != null && maxSleepSec > 0 evaluates to false)
+        // 7. maxSleepSec is 0 (test maxSleepSec != null && maxSleepSec > 0 evaluates to
+        // false)
         ytDlp.setMaxSleepInterval(0);
         Long resultMaxZero = ReflectionTestUtils.invokeMethod(executorService, "calculateRetryBackoffMs", config);
         assertThat(resultMaxZero).isEqualTo(5000L);
@@ -4087,7 +4250,8 @@ class ExecutorServiceImplTest {
 
     @Test
     void sleepForRetry_ShouldSleepNormally() throws InterruptedException {
-        // A very short sleep to cover the real method execution without delaying the test suite
+        // A very short sleep to cover the real method execution without delaying the
+        // test suite
         executorService.sleepForRetry(1L);
     }
 
@@ -4096,5 +4260,165 @@ class ExecutorServiceImplTest {
         Thread.currentThread().interrupt(); // Simulate a thread interruption
         assertThatThrownBy(() -> executorService.sleepForRetry(10000L))
                 .isInstanceOf(InterruptedException.class);
+    }
+
+    @Test
+    void processPendingTasks_ShouldRetryWithTrimFilenames_WhenAudioPhaseFailsWithFileNameTooLong(@TempDir Path tempDir)
+            throws Exception {
+        // Setup
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-1");
+
+        DownloadTask task = DownloadTask.create(job, "vid-1", "Test Video", true);
+        ReflectionTestUtils.setField(task, "id", "task-1");
+        job.addTask(task);
+
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setThreadPoolSize(3);
+        YtDlpConfig ytDlpConfig = new YtDlpConfig("default");
+        ytDlpConfig.setExtractAudio(true);
+        ytDlpConfig.setKeepVideo(false);
+        config.setYtDlpConfig(ytDlpConfig);
+
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("default")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+
+        when(downloadJobRepository.findByIdWithTasks("job-1")).thenReturn(Optional.of(job));
+
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+        lenient().doNothing().when(spyService).sleepForRetry(anyLong());
+
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new ByteArrayInputStream("yt-dlp is up to date".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(0);
+
+        Process failProcess = mock(Process.class);
+        String failOutput = "ERROR: File name too long";
+        when(failProcess.getInputStream()).thenAnswer(
+                inv -> new ByteArrayInputStream("ERROR: File name too long\n".getBytes(StandardCharsets.UTF_8)));
+        when(failProcess.waitFor()).thenReturn(1);
+
+        Process successProcess = mock(Process.class);
+        String successOutput = "[download] 100% of 10.00MiB";
+        when(successProcess.getInputStream()).thenAnswer(
+                inv -> new ByteArrayInputStream("[download] 100% of 10.00MiB\n".getBytes(StandardCharsets.UTF_8)));
+        when(successProcess.waitFor()).thenReturn(0);
+
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list.contains("-U")), any());
+
+        // Audio phase: Return failProcess the first time, successProcess the second
+        // time
+        doReturn(failProcess, successProcess).when(spyService).startProcess(argThat(list -> !list.contains("-U")),
+                any());
+
+        spyService.processPendingTasks();
+
+        verify(spyService, timeout(5000)).startProcess(
+                argThat(list -> list != null && list.contains("--trim-filenames") && list.contains("100")), any());
+        verify(downloadTaskRepository, timeout(5000).atLeastOnce())
+                .save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+    }
+
+    @Test
+    void processPendingTasks_ShouldRetryWithTrimFilenames_WhenVideoPhaseFailsWithFileNameTooLong(@TempDir Path tempDir)
+            throws Exception {
+        // Setup
+        DownloadJob job = new DownloadJob("default");
+        ReflectionTestUtils.setField(job, "id", "job-1");
+
+        DownloadTask task = DownloadTask.create(job, "vid-1", "Test Video", false);
+        ReflectionTestUtils.setField(task, "id", "task-1");
+        job.addTask(task);
+
+        DownloaderConfig config = new DownloaderConfig("default");
+        config.setThreadPoolSize(3);
+        YtDlpConfig ytDlpConfig = new YtDlpConfig("default");
+        ytDlpConfig.setExtractAudio(false);
+        ytDlpConfig.setKeepVideo(true);
+        config.setYtDlpConfig(ytDlpConfig);
+
+        when(downloadTaskRepository.findAllByStatusWithJob(TaskStatus.PENDING)).thenReturn(List.of(task));
+        when(configsService.getResolvedConfig("default")).thenReturn(config);
+        when(configsService.getResolvedConfig(null)).thenReturn(config);
+
+        when(defaultProperties.getDownloadFolder()).thenReturn(tempDir.toString());
+        when(defaultProperties.getNetscapeCookieFolder()).thenReturn(tempDir.toString());
+
+        when(downloadJobRepository.findByIdWithTasks("job-1")).thenReturn(Optional.of(job));
+
+        ExecutorServiceImpl spyService = mock(ExecutorServiceImpl.class, withSettings()
+                .useConstructor(downloadTaskRepository, downloadJobRepository, defaultProperties, configsService,
+                        apiClientService, taskScheduler)
+                .defaultAnswer(CALLS_REAL_METHODS));
+        lenient().doNothing().when(spyService).sleepForRetry(anyLong());
+
+        Process updateProcess = mock(Process.class);
+        when(updateProcess.getInputStream()).thenReturn(new ByteArrayInputStream("yt-dlp is up to date".getBytes()));
+        when(updateProcess.waitFor()).thenReturn(0);
+
+        Process failProcess = mock(Process.class);
+        String failOutput = "ERROR: File name too long";
+        when(failProcess.getInputStream()).thenAnswer(
+                inv -> new ByteArrayInputStream("ERROR: File name too long\n".getBytes(StandardCharsets.UTF_8)));
+        when(failProcess.waitFor()).thenReturn(1);
+
+        Process successProcess = mock(Process.class);
+        String successOutput = "[download] 100% of 10.00MiB";
+        when(successProcess.getInputStream()).thenAnswer(
+                inv -> new ByteArrayInputStream("[download] 100% of 10.00MiB\n".getBytes(StandardCharsets.UTF_8)));
+        when(successProcess.waitFor()).thenReturn(0);
+
+        doReturn(updateProcess).when(spyService).startProcess(argThat(list -> list != null && list.contains("-U")),
+                any());
+
+        // Video phase: Return failProcess the first time, successProcess the second
+        // time
+        doReturn(failProcess, successProcess).when(spyService)
+                .startProcess(argThat(list -> list != null && !list.contains("-U")), any());
+
+        spyService.processPendingTasks();
+
+        verify(spyService, timeout(5000)).startProcess(
+                argThat(list -> list != null && list.contains("--trim-filenames") && list.contains("100")), any());
+        verify(downloadTaskRepository, timeout(5000).atLeastOnce())
+                .save(argThat(t -> t.getStatus() == TaskStatus.DOWNLOADED));
+    }
+
+    @Test
+    void isFileNameTooLongError_ShouldReturnExpectedResult() throws Exception {
+        ExecutorServiceImpl service = new ExecutorServiceImpl(
+                downloadTaskRepository, downloadJobRepository, defaultProperties, configsService, apiClientService,
+                taskScheduler);
+
+        java.lang.reflect.Method method = ExecutorServiceImpl.class.getDeclaredMethod("isFileNameTooLongError",
+                String.class);
+        method.setAccessible(true);
+
+        // Test null
+        Boolean resultNull = (Boolean) method.invoke(service, (String) null);
+        assertThat(resultNull).isFalse();
+
+        // Test file name too long
+        Boolean result1 = (Boolean) method.invoke(service, "ERROR: file name too long");
+        assertThat(result1).isTrue();
+
+        // Test enametoolong
+        Boolean result2 = (Boolean) method.invoke(service, "ERROR: ENAMETOOLONG when writing file");
+        assertThat(result2).isTrue();
+
+        // Test errno 36
+        Boolean result3 = (Boolean) method.invoke(service, "ERROR: something Errno 36 happened");
+        assertThat(result3).isTrue();
+
+        // Test other
+        Boolean resultOther = (Boolean) method.invoke(service, "ERROR: some other error");
+        assertThat(resultOther).isFalse();
     }
 }
