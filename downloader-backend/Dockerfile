@@ -72,7 +72,7 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl gnupg unzip && \
     apt-get install -y --no-install-recommends ffmpeg python3 python3-pip && \
-    pip3 install --no-cache-dir curl-cffi requests websockets certifi typing-extensions && \
+    pip3 install --no-cache-dir curl-cffi==0.5.10 requests websockets certifi typing-extensions && \
     mkdir -p /app/bin && \
     curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/app sh && \
     curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /app/bin/yt-dlp && \
