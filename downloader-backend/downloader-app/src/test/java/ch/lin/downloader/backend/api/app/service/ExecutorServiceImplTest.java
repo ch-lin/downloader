@@ -4300,13 +4300,11 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(0);
 
         Process failProcess = mock(Process.class);
-        String failOutput = "ERROR: File name too long";
         when(failProcess.getInputStream()).thenAnswer(
                 inv -> new ByteArrayInputStream("ERROR: File name too long\n".getBytes(StandardCharsets.UTF_8)));
         when(failProcess.waitFor()).thenReturn(1);
 
         Process successProcess = mock(Process.class);
-        String successOutput = "[download] 100% of 10.00MiB";
         when(successProcess.getInputStream()).thenAnswer(
                 inv -> new ByteArrayInputStream("[download] 100% of 10.00MiB\n".getBytes(StandardCharsets.UTF_8)));
         when(successProcess.waitFor()).thenReturn(0);
@@ -4364,13 +4362,11 @@ class ExecutorServiceImplTest {
         when(updateProcess.waitFor()).thenReturn(0);
 
         Process failProcess = mock(Process.class);
-        String failOutput = "ERROR: File name too long";
         when(failProcess.getInputStream()).thenAnswer(
                 inv -> new ByteArrayInputStream("ERROR: File name too long\n".getBytes(StandardCharsets.UTF_8)));
         when(failProcess.waitFor()).thenReturn(1);
 
         Process successProcess = mock(Process.class);
-        String successOutput = "[download] 100% of 10.00MiB";
         when(successProcess.getInputStream()).thenAnswer(
                 inv -> new ByteArrayInputStream("[download] 100% of 10.00MiB\n".getBytes(StandardCharsets.UTF_8)));
         when(successProcess.waitFor()).thenReturn(0);
